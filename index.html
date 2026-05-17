@@ -105,7 +105,7 @@
     <dialog id="addDialog" class="dialog add-dialog">
       <form id="addRecipeForm" class="dialog-shell" novalidate>
         <div class="dialog-head">
-          <h2>Add A New Recipe</h2>
+          <h2 id="addDialogTitle">Add A New Recipe</h2>
           <button type="button" class="icon-btn" id="closeAddDialog" aria-label="Close add recipe dialog">
             X
           </button>
@@ -169,7 +169,7 @@
         <p class="status" id="formStatus"></p>
 
         <div class="actions">
-          <button type="submit" class="btn btn-primary">Save Recipe</button>
+          <button type="submit" class="btn btn-primary" id="saveRecipeBtn">Save Recipe</button>
           <button type="button" class="btn btn-ghost" id="cancelAddDialog">Cancel</button>
         </div>
       </form>
@@ -188,7 +188,11 @@
           <div class="rating-input" aria-label="Rate this recipe"></div>
         </div>
         <div class="tags"></div>
-        <button class="btn btn-secondary details-btn">View Recipe</button>
+        <div class="recipe-actions">
+          <button class="btn btn-secondary details-btn">View Recipe</button>
+          <button class="btn btn-ghost edit-btn" hidden>Edit</button>
+          <button class="btn btn-danger delete-btn" hidden>Delete</button>
+        </div>
       </article>
     </template>
 

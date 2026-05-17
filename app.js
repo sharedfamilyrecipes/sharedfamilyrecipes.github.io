@@ -26,7 +26,8 @@ const state = {
   supabase: null,
   useSupabase: false,
   session: null,
-  canAdd: false
+  canAdd: false,
+  editingRecipeId: null
 };
 
 const ui = {
@@ -47,6 +48,8 @@ const ui = {
   closeAddDialog: document.querySelector("#closeAddDialog"),
   cancelAddDialog: document.querySelector("#cancelAddDialog"),
   addRecipeForm: document.querySelector("#addRecipeForm"),
+  addDialogTitle: document.querySelector("#addDialogTitle"),
+  saveRecipeBtn: document.querySelector("#saveRecipeBtn"),
   ingredientTagInputs: document.querySelector("#ingredientTagInputs"),
   allergyTagInputs: document.querySelector("#allergyTagInputs"),
   audienceTagInputs: document.querySelector("#audienceTagInputs"),
@@ -106,13 +109,21 @@ function bindEvents() {
       return;
     }
 
+    resetAddDialogMode();
     ui.formStatus.textContent = "";
     ui.addRecipeForm.reset();
+    syncFormChipStates();
     openDialog(ui.addDialog);
   });
 
-  ui.closeAddDialog.addEventListener("click", () => closeDialog(ui.addDialog));
-  ui.cancelAddDialog.addEventListener("click", () => closeDialog(ui.addDialog));
+  ui.closeAddDialog.addEventListener("click", () => {
+    resetAddDialogMode();
+    closeDialog(ui.addDialog);
+  });
+  ui.cancelAddDialog.addEventListener("click", () => {
+    resetAddDialogMode();
+    closeDialog(ui.addDialog);
+  });
   ui.addRecipeForm.addEventListener("submit", handleAddRecipeSubmit);
 
   ui.closeRecipeDialog.addEventListener("click", () => closeDialog(ui.recipeDialog));
@@ -195,7 +206,9 @@ function updateAddButtonState() {
 async function loadRecipesFromSupabase() {
   const { data, error } = await state.supabase
     .from("recipes")
-    .select("id,title,added_by,description,meal_type,ingredient_tags,allergy_tags,audience_tags,ingredients,steps")
+    .select(
+      "id,title,added_by,description,meal_type,ingredient_tags,allergy_tags,audience_tags,ingredients,steps,created_by"
+    )
     .order("title", { ascending: true });
 
   if (error) {
@@ -497,6 +510,23 @@ function renderRecipeGrid(recipes) {
         ratingInput.append(starButton);
       }
 
+      const editBtn = card.querySelector(".edit-btn");
+      const deleteBtn = card.querySelector(".delete-btn");
+      const canManage = canManageRecipe(recipe);
+
+      if (canManage) {
+        editBtn.hidden = false;
+        deleteBtn.hidden = false;
+
+        editBtn.addEventListener("click", () => {
+          openEditRecipeDialog(recipe);
+        });
+
+        deleteBtn.addEventListener("click", async () => {
+          await deleteRecipe(recipe);
+        });
+      }
+
       card.querySelector(".details-btn").addEventListener("click", () => {
         openRecipeDialog(recipe);
       });
@@ -605,7 +635,7 @@ async function handleAddRecipeSubmit(event) {
     return;
   }
 
-  const { error } = await state.supabase.from("recipes").insert({
+  const payload = {
     title: recipe.title,
     added_by: recipe.addedBy,
     description: recipe.description,
@@ -615,15 +645,39 @@ async function handleAddRecipeSubmit(event) {
     audience_tags: recipe.audienceTags,
     ingredients: recipe.ingredients,
     steps: recipe.steps
-  });
+  };
+
+  let error = null;
+
+  if (state.editingRecipeId) {
+    const result = await state.supabase
+      .from("recipes")
+      .update(payload)
+      .eq("id", state.editingRecipeId)
+      .eq("created_by", state.session.user.id)
+      .select("id")
+      .single();
+
+    error = result.error;
+  } else {
+    const result = await state.supabase.from("recipes").insert({
+      ...payload,
+      created_by: state.session.user.id
+    });
+
+    error = result.error;
+  }
 
   if (error) {
     console.error(error);
-    ui.formStatus.textContent = "Could not save recipe. Check permissions and try again.";
+    ui.formStatus.textContent = state.editingRecipeId
+      ? "Could not update recipe. You can only edit your own recipes."
+      : "Could not save recipe. Check permissions and try again.";
     return;
   }
 
-  ui.formStatus.textContent = "Recipe saved.";
+  ui.formStatus.textContent = state.editingRecipeId ? "Recipe updated." : "Recipe saved.";
+  resetAddDialogMode();
   closeDialog(ui.addDialog);
   await loadRecipesFromSupabase();
   buildFilterAndFormInputs();
@@ -716,6 +770,7 @@ function fromDbRecipeRow(row) {
     audienceTags: row.audience_tags,
     ingredients: row.ingredients,
     steps: row.steps,
+    createdByUserId: row.created_by,
     ratingAverage: 0,
     ratingCount: 0,
     userRating: 0
@@ -739,10 +794,103 @@ function normalizeRecipe(raw) {
     audienceTags: cleanArray(raw.audienceTags),
     ingredients: cleanArray(raw.ingredients),
     steps: cleanArray(raw.steps),
+    createdByUserId: cleanText(raw.createdByUserId),
     ratingAverage: Number(raw.ratingAverage || 0),
     ratingCount: Number(raw.ratingCount || 0),
     userRating: Number(raw.userRating || 0)
   };
+}
+
+function canManageRecipe(recipe) {
+  return Boolean(
+    state.useSupabase &&
+      state.canAdd &&
+      state.session?.user?.id &&
+      recipe.createdByUserId &&
+      recipe.createdByUserId === state.session.user.id
+  );
+}
+
+function openEditRecipeDialog(recipe) {
+  if (!canManageRecipe(recipe)) {
+    ui.authMessage.textContent = "You can only edit your own recipes.";
+    return;
+  }
+
+  state.editingRecipeId = recipe.id;
+  ui.addDialogTitle.textContent = "Edit Recipe";
+  ui.saveRecipeBtn.textContent = "Save Changes";
+  ui.formStatus.textContent = "";
+
+  ui.addRecipeForm.elements.title.value = recipe.title;
+  ui.addRecipeForm.elements.addedBy.value = recipe.addedBy;
+  ui.addRecipeForm.elements.description.value = recipe.description;
+  ui.addRecipeForm.elements.mealType.value = recipe.mealType;
+  ui.addRecipeForm.elements.ingredientsList.value = recipe.ingredients.join("\n");
+  ui.addRecipeForm.elements.stepsList.value = recipe.steps.join("\n");
+
+  setFormTagSelections("ingredientTags", recipe.ingredientTags);
+  setFormTagSelections("allergyTags", recipe.allergyTags);
+  setFormTagSelections("audienceTags", recipe.audienceTags);
+
+  openDialog(ui.addDialog);
+}
+
+function setFormTagSelections(inputName, selectedTags) {
+  const selected = new Set(selectedTags || []);
+  const inputs = ui.addRecipeForm.querySelectorAll(`input[name="${inputName}"]`);
+
+  inputs.forEach((input) => {
+    input.checked = selected.has(input.value);
+    if (input.parentElement) {
+      input.parentElement.classList.toggle("active", input.checked);
+    }
+  });
+}
+
+function syncFormChipStates() {
+  const chipInputs = ui.addRecipeForm.querySelectorAll('input[type="checkbox"]');
+  chipInputs.forEach((input) => {
+    if (input.parentElement) {
+      input.parentElement.classList.toggle("active", input.checked);
+    }
+  });
+}
+
+function resetAddDialogMode() {
+  state.editingRecipeId = null;
+  ui.addDialogTitle.textContent = "Add A New Recipe";
+  ui.saveRecipeBtn.textContent = "Save Recipe";
+}
+
+async function deleteRecipe(recipe) {
+  if (!canManageRecipe(recipe)) {
+    ui.authMessage.textContent = "You can only delete your own recipes.";
+    return;
+  }
+
+  const confirmed = window.confirm(`Delete "${recipe.title}"? This cannot be undone.`);
+  if (!confirmed) {
+    return;
+  }
+
+  const { error } = await state.supabase
+    .from("recipes")
+    .delete()
+    .eq("id", recipe.id)
+    .eq("created_by", state.session.user.id)
+    .select("id")
+    .single();
+
+  if (error) {
+    console.error(error);
+    ui.authMessage.textContent = "Could not delete recipe. You can only delete your own recipes.";
+    return;
+  }
+
+  await loadRecipesFromSupabase();
+  buildFilterAndFormInputs();
+  render();
 }
 
 function renderStars(value) {
