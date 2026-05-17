@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Family Recipe Board</title>
+    <title>Shared Family Recipes</title>
     <meta
       name="description"
       content="A family-friendly recipe board with easy filters and no-code recipe adding."
@@ -20,46 +20,35 @@
     <div class="bg-orb bg-orb-1" aria-hidden="true"></div>
     <div class="bg-orb bg-orb-2" aria-hidden="true"></div>
 
+    <nav class="navbar" aria-label="Main navigation">
+      <div class="navbar-content">
+        <div class="navbar-brand">
+          <span class="navbar-logo">🍳</span>
+          <span class="navbar-title">Shared Family Recipes</span>
+        </div>
+        <form id="authForm" class="navbar-auth" novalidate>
+          <span id="authMessage" class="navbar-status"></span>
+          <input id="authEmail" name="email" type="email" autocomplete="email" placeholder="Email" />
+          <input id="authPassword" name="password" type="password" autocomplete="current-password" placeholder="Password" />
+          <button type="button" id="signInBtn" class="btn btn-secondary">Sign In</button>
+          <button type="button" id="signUpBtn" class="btn btn-ghost">Sign Up</button>
+          <button type="button" id="signOutBtn" class="btn btn-ghost">Sign Out</button>
+        </form>
+      </div>
+    </nav>
+
     <header class="site-header">
       <div>
         <p class="eyebrow">Recipe Board</p>
-        <h1>Family Kitchen Atlas</h1>
+        <h1>Shared Family Recipes</h1>
         <p class="intro">
-          Add recipes with a simple form, then filter by meal type, ingredient, and
-          allergies.
+          A simple place where we can view recipes shared across our family.
         </p>
       </div>
       <button id="openAddRecipe" class="btn btn-primary">Add A Recipe</button>
     </header>
 
-    <section class="panel auth-panel" aria-label="Account access">
-      <div class="auth-copy">
-        <h2>Family Access</h2>
-        <p id="authMessage" class="status">
-          Sign in to add recipes. Only approved family accounts can post.
-        </p>
-      </div>
-      <form id="authForm" class="auth-form" novalidate>
-        <label>
-          Email
-          <input id="authEmail" name="email" type="email" autocomplete="email" />
-        </label>
-        <label>
-          Password
-          <input
-            id="authPassword"
-            name="password"
-            type="password"
-            autocomplete="current-password"
-          />
-        </label>
-        <div class="auth-actions">
-          <button type="button" id="signInBtn" class="btn btn-secondary">Sign In</button>
-          <button type="button" id="signUpBtn" class="btn btn-ghost">Create Account</button>
-          <button type="button" id="signOutBtn" class="btn btn-ghost">Sign Out</button>
-        </div>
-      </form>
-    </section>
+    <!-- Auth panel removed; navbar handles authentication -->
 
     <main class="layout">
       <aside class="panel filters-panel" aria-label="Recipe filters">
@@ -102,7 +91,6 @@
           <h2>Recipes</h2>
           <p id="resultCount">0 recipes</p>
         </div>
-        <p id="pageStatus" class="status" role="status" aria-live="polite"></p>
         <div id="recipeGrid" class="recipe-grid"></div>
       </section>
     </main>

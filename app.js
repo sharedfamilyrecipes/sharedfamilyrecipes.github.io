@@ -10,7 +10,7 @@ const DEFAULT_OPTIONS = {
     "Seafood",
     "Pork"
   ],
-  allergies: ["Milk Free", "Gluten Free", "Nut Free"],
+  allergies: ["Milk Free", "Gluten Free"],
   audience: ["Adults", "Kids", "Family"]
 };
 
@@ -38,7 +38,6 @@ const ui = {
   clearFilters: document.querySelector("#clearFilters"),
   recipeGrid: document.querySelector("#recipeGrid"),
   resultCount: document.querySelector("#resultCount"),
-  pageStatus: document.querySelector("#pageStatus"),
   cardTemplate: document.querySelector("#recipeCardTemplate"),
   recipeDialog: document.querySelector("#recipeDialog"),
   recipeDialogContent: document.querySelector("#recipeDialogContent"),
@@ -63,7 +62,6 @@ const ui = {
 
 init().catch((error) => {
   console.error(error);
-  ui.pageStatus.textContent = "Unexpected startup error. Refresh and try again.";
 });
 
 async function init() {
@@ -81,8 +79,6 @@ async function init() {
   } else {
     ui.authMessage.textContent =
       "Supabase is not configured yet. Add values in supabase-config.js.";
-    ui.pageStatus.textContent =
-      "Running in read-only starter mode until Supabase is configured.";
     await loadRecipesFromJson();
   }
 
@@ -103,13 +99,9 @@ function bindEvents() {
 
   ui.openAddRecipe.addEventListener("click", () => {
     if (!state.session) {
-      ui.pageStatus.textContent = "Sign in first to add a recipe.";
-      return;
     }
 
     if (!state.canAdd) {
-      ui.pageStatus.textContent =
-        "Your account is signed in but not approved yet. Ask the owner to grant add permission.";
       return;
     }
 
@@ -184,9 +176,7 @@ async function refreshSessionAndPermissions() {
   }
 
   state.canAdd = Boolean(editorRow && editorRow.can_add);
-  ui.authMessage.textContent = state.canAdd
-    ? `Signed in as ${userEmail}. You can add recipes.`
-    : `Signed in as ${userEmail}. Waiting for owner approval to add recipes.`;
+  ui.authMessage.textContent = `Signed in as ${userEmail}.`;
 
   updateAddButtonState();
 }
@@ -210,13 +200,11 @@ async function loadRecipesFromSupabase() {
 
   if (error) {
     console.error(error);
-    ui.pageStatus.textContent = "Could not load shared recipes from Supabase.";
     state.recipes = [];
     return;
   }
 
   state.recipes = data.map(fromDbRecipeRow);
-  ui.pageStatus.textContent = "Loaded shared recipes from Supabase.";
 }
 
 async function loadRecipesFromJson() {
@@ -231,7 +219,6 @@ async function loadRecipesFromJson() {
   } catch (error) {
     console.error(error);
     state.recipes = [];
-    ui.pageStatus.textContent = "Could not load starter recipes.";
   }
 }
 
