@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Family Recipe Board</title>
+    <meta
+      name="description"
+      content="A family-friendly recipe board with easy filters and no-code recipe adding."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Nunito:wght@500;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="bg-orb bg-orb-1" aria-hidden="true"></div>
+    <div class="bg-orb bg-orb-2" aria-hidden="true"></div>
+
+    <header class="site-header">
+      <div>
+        <p class="eyebrow">Recipe Board</p>
+        <h1>Family Kitchen Atlas</h1>
+        <p class="intro">
+          Add recipes with a simple form, then filter by meal type, ingredient, and
+          allergies.
+        </p>
+      </div>
+      <button id="openAddRecipe" class="btn btn-primary">Add A Recipe</button>
+    </header>
+
+    <section class="panel auth-panel" aria-label="Account access">
+      <div class="auth-copy">
+        <h2>Family Access</h2>
+        <p id="authMessage" class="status">
+          Sign in to add recipes. Only approved family accounts can post.
+        </p>
+      </div>
+      <form id="authForm" class="auth-form" novalidate>
+        <label>
+          Email
+          <input id="authEmail" name="email" type="email" autocomplete="email" />
+        </label>
+        <label>
+          Password
+          <input
+            id="authPassword"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+          />
+        </label>
+        <div class="auth-actions">
+          <button type="button" id="signInBtn" class="btn btn-secondary">Sign In</button>
+          <button type="button" id="signUpBtn" class="btn btn-ghost">Create Account</button>
+          <button type="button" id="signOutBtn" class="btn btn-ghost">Sign Out</button>
+        </div>
+      </form>
+    </section>
+
+    <main class="layout">
+      <aside class="panel filters-panel" aria-label="Recipe filters">
+        <h2>Find Recipes</h2>
+        <div class="search-wrap">
+          <label for="searchInput">Search</label>
+          <input
+            id="searchInput"
+            type="search"
+            placeholder="Try: pancakes, chicken, dinner"
+            autocomplete="off"
+          />
+        </div>
+
+        <section>
+          <h3>Meal Type</h3>
+          <div id="mealTypeFilters" class="chip-list"></div>
+        </section>
+
+        <section>
+          <h3>Ingredient</h3>
+          <div id="ingredientFilters" class="chip-list"></div>
+        </section>
+
+        <section>
+          <h3>Allergies / Dietary</h3>
+          <div id="allergyFilters" class="chip-list"></div>
+        </section>
+
+        <section>
+          <h3>Who Is It For?</h3>
+          <div id="audienceFilters" class="chip-list"></div>
+        </section>
+
+        <button id="clearFilters" class="btn btn-ghost">Clear Filters</button>
+      </aside>
+
+      <section class="panel recipes-panel" aria-live="polite">
+        <div class="recipes-head">
+          <h2>Recipes</h2>
+          <p id="resultCount">0 recipes</p>
+        </div>
+        <p id="pageStatus" class="status" role="status" aria-live="polite"></p>
+        <div id="recipeGrid" class="recipe-grid"></div>
+      </section>
+    </main>
+
+    <dialog id="recipeDialog" class="dialog recipe-dialog">
+      <form method="dialog" class="dialog-shell">
+        <button class="icon-btn" id="closeRecipeDialog" aria-label="Close recipe details">X</button>
+      </form>
+      <article id="recipeDialogContent"></article>
+    </dialog>
+
+    <dialog id="addDialog" class="dialog add-dialog">
+      <form id="addRecipeForm" class="dialog-shell" novalidate>
+        <div class="dialog-head">
+          <h2>Add A New Recipe</h2>
+          <button type="button" class="icon-btn" id="closeAddDialog" aria-label="Close add recipe dialog">
+            X
+          </button>
+        </div>
+
+        <div class="form-grid">
+          <label>
+            Recipe Name
+            <input type="text" name="title" required maxlength="80" />
+          </label>
+
+          <label>
+            Added By
+            <input
+              type="text"
+              name="addedBy"
+              required
+              maxlength="40"
+              placeholder="Your name"
+            />
+          </label>
+
+          <label>
+            Meal Type
+            <select name="mealType" required>
+              <option value="">Choose one...</option>
+            </select>
+          </label>
+
+          <label class="full">
+            Short Description
+            <textarea name="description" rows="2" maxlength="220" required></textarea>
+          </label>
+
+          <fieldset>
+            <legend>Ingredient Tags</legend>
+            <div id="ingredientTagInputs" class="chip-list"></div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Allergies / Dietary Tags</legend>
+            <div id="allergyTagInputs" class="chip-list"></div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Audience Tags</legend>
+            <div id="audienceTagInputs" class="chip-list"></div>
+          </fieldset>
+
+          <label class="full">
+            Ingredients (one per line)
+            <textarea name="ingredientsList" rows="6" required></textarea>
+          </label>
+
+          <label class="full">
+            Steps (one per line)
+            <textarea name="stepsList" rows="6" required></textarea>
+          </label>
+        </div>
+
+        <p class="status" id="formStatus"></p>
+
+        <div class="actions">
+          <button type="submit" class="btn btn-primary">Save Recipe</button>
+          <button type="button" class="btn btn-ghost" id="cancelAddDialog">Cancel</button>
+        </div>
+      </form>
+    </dialog>
+
+    <template id="recipeCardTemplate">
+      <article class="recipe-card">
+        <div class="card-top">
+          <h3></h3>
+          <p class="added-by"></p>
+          <p class="description"></p>
+        </div>
+        <div class="tags"></div>
+        <button class="btn btn-secondary details-btn">View Recipe</button>
+      </article>
+    </template>
+
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script defer src="supabase-config.js"></script>
+    <script defer src="app.js"></script>
+  </body>
+</html>
