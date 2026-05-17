@@ -52,8 +52,17 @@ create table if not exists public.recipe_editors (
   approved_at timestamptz not null default now()
 );
 
+create table if not exists public.recipe_ratings (
+  recipe_id uuid not null references public.recipes(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  rating int not null check (rating between 1 and 5),
+  updated_at timestamptz not null default now(),
+  primary key (recipe_id, user_id)
+);
+
 alter table public.recipes enable row level security;
 alter table public.recipe_editors enable row level security;
+alter table public.recipe_ratings enable row level security;
 
 -- Anyone can read recipes
 create policy "recipes_select_public"
@@ -81,6 +90,27 @@ on public.recipe_editors
 for select
 to authenticated
 using (user_id = auth.uid());
+
+-- Anyone can read recipe ratings (average stars are shown publicly)
+create policy "ratings_select_public"
+on public.recipe_ratings
+for select
+using (true);
+
+-- Signed-in users can create their own rating row
+create policy "ratings_insert_own"
+on public.recipe_ratings
+for insert
+to authenticated
+with check (user_id = auth.uid());
+
+-- Signed-in users can update only their own rating row
+create policy "ratings_update_own"
+on public.recipe_ratings
+for update
+to authenticated
+using (user_id = auth.uid())
+with check (user_id = auth.uid());
 ```
 
 Optional (recommended) trigger to save the creator automatically:

@@ -74,6 +74,7 @@ async function init() {
 
     state.supabase.auth.onAuthStateChange(async () => {
       await refreshSessionAndPermissions();
+      await hydrateRecipeRatings();
       render();
     });
   } else {
@@ -153,7 +154,6 @@ async function refreshSessionAndPermissions() {
 
   if (!state.session?.user) {
     state.canAdd = false;
-    ui.authMessage.textContent = "Signed out. Sign in to add recipes.";
     updateAddButtonState();
     return;
   }
@@ -170,7 +170,7 @@ async function refreshSessionAndPermissions() {
   if (editorError) {
     console.error(editorError);
     state.canAdd = false;
-    ui.authMessage.textContent = `Signed in as ${userEmail}. Permission check failed.`;
+    ui.authMessage.textContent = `Signed in as ${userEmail}.`;
     updateAddButtonState();
     return;
   }
@@ -205,6 +205,73 @@ async function loadRecipesFromSupabase() {
   }
 
   state.recipes = data.map(fromDbRecipeRow);
+  await hydrateRecipeRatings();
+}
+
+async function hydrateRecipeRatings() {
+  state.recipes = state.recipes.map((recipe) => ({
+    ...recipe,
+    ratingAverage: 0,
+    ratingCount: 0,
+    userRating: 0
+  }));
+
+  if (!state.useSupabase || !state.recipes.length) {
+    return;
+  }
+
+  const { data: allRatings, error: allRatingsError } = await state.supabase
+    .from("recipe_ratings")
+    .select("recipe_id,rating");
+
+  if (allRatingsError) {
+    console.error(allRatingsError);
+    return;
+  }
+
+  const statsByRecipeId = new Map();
+  allRatings.forEach((row) => {
+    const recipeId = String(row.recipe_id || "");
+    const ratingValue = Number(row.rating || 0);
+
+    if (!recipeId || !Number.isFinite(ratingValue) || ratingValue < 1 || ratingValue > 5) {
+      return;
+    }
+
+    const current = statsByRecipeId.get(recipeId) || { sum: 0, count: 0 };
+    current.sum += ratingValue;
+    current.count += 1;
+    statsByRecipeId.set(recipeId, current);
+  });
+
+  const myRatingsByRecipeId = new Map();
+  if (state.session?.user?.id) {
+    const { data: myRatings, error: myRatingsError } = await state.supabase
+      .from("recipe_ratings")
+      .select("recipe_id,rating")
+      .eq("user_id", state.session.user.id);
+
+    if (!myRatingsError) {
+      myRatings.forEach((row) => {
+        myRatingsByRecipeId.set(String(row.recipe_id || ""), Number(row.rating || 0));
+      });
+    } else {
+      console.error(myRatingsError);
+    }
+  }
+
+  state.recipes = state.recipes.map((recipe) => {
+    const stats = statsByRecipeId.get(recipe.id);
+    const count = stats ? stats.count : 0;
+    const average = count > 0 ? stats.sum / count : 0;
+
+    return {
+      ...recipe,
+      ratingAverage: average,
+      ratingCount: count,
+      userRating: myRatingsByRecipeId.get(recipe.id) || 0
+    };
+  });
 }
 
 async function loadRecipesFromJson() {
@@ -391,12 +458,88 @@ function renderRecipeGrid(recipes) {
           tagBox.append(span);
         });
 
+      const ratingSummary = card.querySelector(".rating-summary");
+      const ratingMeta = card.querySelector(".rating-meta");
+      const ratingInput = card.querySelector(".rating-input");
+
+      const ratingDisplay = Number.isInteger(recipe.ratingAverage)
+        ? String(recipe.ratingAverage)
+        : recipe.ratingAverage.toFixed(1);
+      ratingSummary.textContent = `${renderStars(recipe.ratingAverage)} ${ratingDisplay}/5`;
+      ratingMeta.textContent =
+        recipe.ratingCount > 0
+          ? `${recipe.ratingCount} rating${recipe.ratingCount === 1 ? "" : "s"}`
+          : "No ratings yet";
+
+      ratingInput.innerHTML = "";
+      for (let score = 1; score <= 5; score += 1) {
+        const starButton = document.createElement("button");
+        starButton.type = "button";
+        starButton.className = "star-btn";
+        starButton.textContent = "★";
+        starButton.setAttribute("aria-label", `Rate ${recipe.title} ${score} stars`);
+
+        if (recipe.userRating >= score) {
+          starButton.classList.add("active");
+        }
+
+        if (!state.useSupabase || !state.session?.user) {
+          starButton.disabled = true;
+          starButton.title = state.useSupabase
+            ? "Sign in to rate recipes"
+            : "Configure Supabase to enable ratings";
+        }
+
+        starButton.addEventListener("click", async () => {
+          await submitRecipeRating(recipe.id, score);
+        });
+
+        ratingInput.append(starButton);
+      }
+
       card.querySelector(".details-btn").addEventListener("click", () => {
         openRecipeDialog(recipe);
       });
 
       ui.recipeGrid.append(card);
     });
+}
+
+async function submitRecipeRating(recipeId, rating) {
+  if (!state.useSupabase) {
+    ui.authMessage.textContent = "Configure Supabase before rating recipes.";
+    return;
+  }
+
+  if (!state.session?.user?.id) {
+    ui.authMessage.textContent = "Sign in to rate recipes.";
+    return;
+  }
+
+  const safeRating = Math.max(1, Math.min(5, Number(rating || 0)));
+  if (!Number.isFinite(safeRating)) {
+    return;
+  }
+
+  const { error } = await state.supabase.from("recipe_ratings").upsert(
+    {
+      recipe_id: recipeId,
+      user_id: state.session.user.id,
+      rating: safeRating
+    },
+    {
+      onConflict: "recipe_id,user_id"
+    }
+  );
+
+  if (error) {
+    console.error(error);
+    ui.authMessage.textContent = "Could not save rating. Please try again.";
+    return;
+  }
+
+  await hydrateRecipeRatings();
+  render();
 }
 
 function openRecipeDialog(recipe) {
@@ -572,7 +715,10 @@ function fromDbRecipeRow(row) {
     allergyTags: row.allergy_tags,
     audienceTags: row.audience_tags,
     ingredients: row.ingredients,
-    steps: row.steps
+    steps: row.steps,
+    ratingAverage: 0,
+    ratingCount: 0,
+    userRating: 0
   });
 }
 
@@ -592,8 +738,17 @@ function normalizeRecipe(raw) {
     allergyTags: cleanArray(raw.allergyTags),
     audienceTags: cleanArray(raw.audienceTags),
     ingredients: cleanArray(raw.ingredients),
-    steps: cleanArray(raw.steps)
+    steps: cleanArray(raw.steps),
+    ratingAverage: Number(raw.ratingAverage || 0),
+    ratingCount: Number(raw.ratingCount || 0),
+    userRating: Number(raw.userRating || 0)
   };
+}
+
+function renderStars(value) {
+  const safeValue = Math.max(0, Math.min(5, Number(value || 0)));
+  const full = Math.round(safeValue);
+  return `${"★".repeat(full)}${"☆".repeat(5 - full)}`;
 }
 
 function cleanText(value) {

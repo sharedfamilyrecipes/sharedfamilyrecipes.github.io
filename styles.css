@@ -425,6 +425,61 @@ select:focus {
   color: var(--text-muted);
 }
 
+.rating-block {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid rgba(47, 36, 29, 0.09);
+  border-radius: 12px;
+  background: #fff9ef;
+}
+
+.rating-summary {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #7a5a1f;
+}
+
+.rating-meta {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.rating-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.star-btn {
+  border: 0;
+  background: transparent;
+  color: #d3c2a0;
+  font-size: 1.05rem;
+  padding: 0.08rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 0.15s, color 0.2s;
+}
+
+.star-btn.active {
+  color: #f2b21d;
+}
+
+.star-btn:hover,
+.star-btn:focus-visible {
+  color: #e2a516;
+  transform: translateY(-1px);
+}
+
+.star-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .tags {
   display: flex;
   flex-wrap: wrap;
