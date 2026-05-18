@@ -74,10 +74,8 @@ async function init() {
     await refreshSessionAndPermissions();
     await loadRecipesFromSupabase();
 
-    state.supabase.auth.onAuthStateChange(async () => {
-      await refreshSessionAndPermissions();
-      await hydrateRecipeRatings();
-      render();
+    state.supabase.auth.onAuthStateChange((event) => {
+      refreshSessionAndPermissions().then(() => hydrateRecipeRatings()).then(() => render());
     });
   } else {
     ui.authMessage.textContent =
@@ -101,9 +99,6 @@ function bindEvents() {
   });
 
   ui.openAddRecipe.addEventListener("click", () => {
-    if (!state.session) {
-    }
-
     if (!state.canAdd) {
       return;
     }
@@ -169,6 +164,8 @@ async function refreshSessionAndPermissions() {
   if (!state.session?.user) {
     state.canAdd = false;
     updateAddButtonState();
+    ui.authMessage.textContent = "";
+    render();
     return;
   }
 
@@ -196,6 +193,8 @@ async function refreshSessionAndPermissions() {
 }
 
 function updateAddButtonState() {
+  ui.openAddRecipe.hidden = !state.session || !state.canAdd;
+
   if (!state.session || !state.canAdd) {
     ui.openAddRecipe.classList.add("btn-ghost");
     ui.openAddRecipe.classList.remove("btn-primary");
@@ -209,6 +208,30 @@ function updateAddButtonState() {
 function updateAuthButtonState() {
   const signedIn = Boolean(state.session?.user);
   ui.signOutBtn.hidden = !signedIn;
+  ui.signInBtn.hidden = signedIn;
+  ui.signUpBtn.hidden = signedIn;
+  ui.authEmail.hidden = signedIn;
+  ui.authPassword.hidden = signedIn;
+}
+
+async function syncCurrentUserProfile() {
+  if (!state.useSupabase || !state.session?.user?.id || !state.session.user.email) {
+    return;
+  }
+
+  const { error } = await state.supabase.from("user_profiles").upsert(
+    {
+      user_id: state.session.user.id,
+      email: state.session.user.email
+    },
+    {
+      onConflict: "user_id"
+    }
+  );
+
+  if (error && error.code !== "42P01" && error.code !== "42501" && error.code !== "PGRST205") {
+    console.error(error);
+  }
 }
 
 async function loadRecipesFromSupabase() {
@@ -744,7 +767,6 @@ async function signIn() {
   }
 
   await refreshSessionAndPermissions();
-  ui.authMessage.textContent = "Signed in.";
 }
 
 async function signOut() {
@@ -753,14 +775,8 @@ async function signOut() {
     return;
   }
 
-  const { error } = await state.supabase.auth.signOut();
-  if (error) {
-    console.error(error);
-    ui.authMessage.textContent = `Sign-out failed: ${error.message}`;
-    return;
-  }
-
-  await refreshSessionAndPermissions();
+  await state.supabase.auth.signOut();
+  window.location.reload();
 }
 
 function fromDbRecipeRow(row) {

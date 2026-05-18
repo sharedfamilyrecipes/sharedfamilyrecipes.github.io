@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin | Shared Family Recipes</title>
+    <meta name="description" content="Manage recipe contributor permissions." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Nunito:wght@500;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="admin.css" />
+  </head>
+  <body>
+    <main class="admin-shell">
+      <header class="admin-head">
+        <div>
+          <p class="eyebrow">Shared Family Recipes</p>
+          <h1>Admin Board</h1>
+          <p class="intro">Manage who can add and edit recipes.</p>
+        </div>
+        <a class="home-link" href="../index.html">Back To Recipes</a>
+      </header>
+
+      <section class="panel auth-panel" aria-label="Authentication">
+        <h2>Sign In</h2>
+        <form id="authForm" class="auth-form" novalidate>
+          <input id="authEmail" name="email" type="email" autocomplete="email" placeholder="Email" />
+          <input
+            id="authPassword"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            placeholder="Password"
+          />
+          <button type="button" id="signInBtn" class="btn btn-primary">Sign In</button>
+          <button type="button" id="signOutBtn" class="btn btn-ghost" hidden>Sign Out</button>
+        </form>
+        <p id="authStatus" class="status"></p>
+      </section>
+
+      <section id="adminBoard" class="panel" hidden aria-label="Admin permission board">
+        <div class="board-head">
+          <h2>User Permissions</h2>
+          <button type="button" id="refreshUsersBtn" class="btn btn-ghost">Refresh</button>
+        </div>
+
+        <form id="grantForm" class="grant-form" novalidate>
+          <label>
+            User ID Or Email
+            <input
+              id="grantUserId"
+              name="userId"
+              type="text"
+              required
+              placeholder="Supabase user UUID or email"
+            />
+          </label>
+          <button type="submit" class="btn btn-primary">Grant Add Permission</button>
+        </form>
+
+        <p id="boardStatus" class="status"></p>
+
+        <div class="table-wrap">
+          <table class="users-table">
+            <thead>
+              <tr>
+                <th scope="col">Email</th>
+                <th scope="col">User ID</th>
+                <th scope="col">Can Add Recipes</th>
+                <th scope="col">Action</th>
+              </tr>
+            </thead>
+            <tbody id="usersTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="accessDenied" class="panel" aria-live="polite">
+        <h2>Access Restricted</h2>
+        <p>Sign in with an account that already has add permission to use this admin board.</p>
+        <p id="accessDeniedDetail" class="status"></p>
+      </section>
+    </main>
+
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script defer src="../supabase-config.js"></script>
+    <script defer src="admin.js"></script>
+  </body>
+</html>
