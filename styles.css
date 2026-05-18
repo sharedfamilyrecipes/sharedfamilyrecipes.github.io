@@ -397,6 +397,7 @@ select:focus {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
   gap: 0.8rem;
+  align-items: stretch;
 }
 
 .recipe-card {
@@ -405,6 +406,7 @@ select:focus {
   background: #fff;
   padding: 0.8rem;
   display: grid;
+  grid-template-rows: auto auto auto 1fr;
   gap: 0.8rem;
   animation: rise-in 380ms ease both;
 }
@@ -484,11 +486,15 @@ select:focus {
   display: flex;
   flex-wrap: wrap;
   gap: 0.28rem;
+  align-items: center;
 }
 
 .tag {
+  display: inline-flex;
+  align-items: center;
   border-radius: 999px;
   padding: 0.22rem 0.52rem;
+  line-height: 1;
   font-size: 0.76rem;
   font-weight: 700;
   background: #f2ebe0;
@@ -498,10 +504,16 @@ select:focus {
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem;
+  margin-top: auto;
+  align-items: center;
 }
 
 .recipe-actions .btn {
   padding: 0.5rem 0.72rem;
+}
+
+.recipe-actions .details-btn {
+  min-height: 2.35rem;
 }
 
 .data-panel {
@@ -577,6 +589,81 @@ select:focus {
 
 .recipe-dialog article {
   padding-top: 2.8rem;
+  max-height: calc(90vh - 2rem);
+  overflow-y: auto;
+}
+
+.recipe-modal {
+  display: grid;
+  gap: 1rem;
+}
+
+.recipe-modal-head {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.15rem 0 0.8rem;
+  border-bottom: 1px solid rgba(47, 36, 29, 0.1);
+}
+
+.recipe-modal-head h2 {
+  font-size: clamp(1.45rem, 2.1vw, 1.95rem);
+  line-height: 1.18;
+}
+
+.recipe-modal-meta {
+  margin: 0;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.recipe-modal-meta span {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.72rem;
+  font-weight: 800;
+  margin-right: 0.35rem;
+}
+
+.recipe-modal-description {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.recipe-modal-tags {
+  margin-top: 0.1rem;
+}
+
+.recipe-modal-sections {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.25fr);
+  gap: 0.85rem;
+}
+
+.recipe-modal-section {
+  border: 1px solid rgba(47, 36, 29, 0.11);
+  border-radius: 14px;
+  background: #fffcf7;
+  padding: 0.8rem 0.9rem;
+}
+
+.recipe-modal-section h3 {
+  margin: 0 0 0.55rem;
+  font-size: 1.3rem;
+}
+
+.recipe-modal-section .ingredients,
+.recipe-modal-section .steps {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.recipe-modal-section li {
+  margin-bottom: 0.28rem;
+}
+
+.recipe-modal-section li:last-child {
+  margin-bottom: 0;
 }
 
 .add-dialog {
@@ -670,6 +757,10 @@ legend {
   }
 
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .recipe-modal-sections {
     grid-template-columns: 1fr;
   }
 }

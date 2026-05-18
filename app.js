@@ -579,18 +579,30 @@ function openRecipeDialog(recipe) {
   const stepItems = recipe.steps.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
 
   ui.recipeDialogContent.innerHTML = `
-    <h2>${escapeHtml(recipe.title)}</h2>
-    <p><strong>Added by:</strong> ${escapeHtml(recipe.addedBy)}</p>
-    <p>${escapeHtml(recipe.description)}</p>
-    <div class="tags">
-      ${[recipe.mealType, ...recipe.ingredientTags, ...recipe.allergyTags, ...recipe.audienceTags]
-        .map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`)
-        .join("")}
+    <div class="recipe-modal">
+      <header class="recipe-modal-head">
+        <h2>${escapeHtml(recipe.title)}</h2>
+        <p class="recipe-modal-meta"><span>Added by</span> ${escapeHtml(recipe.addedBy)}</p>
+        <p class="recipe-modal-description">${escapeHtml(recipe.description)}</p>
+        <div class="tags recipe-modal-tags">
+          ${[recipe.mealType, ...recipe.ingredientTags, ...recipe.allergyTags, ...recipe.audienceTags]
+            .map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`)
+            .join("")}
+        </div>
+      </header>
+
+      <div class="recipe-modal-sections">
+        <section class="recipe-modal-section">
+          <h3>Ingredients</h3>
+          <ul class="ingredients">${ingredientItems}</ul>
+        </section>
+
+        <section class="recipe-modal-section">
+          <h3>Steps</h3>
+          <ol class="steps">${stepItems}</ol>
+        </section>
+      </div>
     </div>
-    <h3>Ingredients</h3>
-    <ul class="ingredients">${ingredientItems}</ul>
-    <h3>Steps</h3>
-    <ol class="steps">${stepItems}</ol>
   `;
 
   openDialog(ui.recipeDialog);
