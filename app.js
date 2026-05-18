@@ -4,10 +4,8 @@ const DEFAULT_OPTIONS = {
     "Chicken",
     "Beef",
     "Pasta",
-    "Eggs",
     "Rice",
     "Vegetarian",
-    "Seafood",
     "Pork"
   ],
   allergies: ["Milk Free", "Gluten Free"],
@@ -69,6 +67,7 @@ init().catch((error) => {
 
 async function init() {
   bindEvents();
+  updateAuthButtonState();
   setupSupabaseClient();
 
   if (state.useSupabase) {
@@ -82,8 +81,8 @@ async function init() {
     });
   } else {
     ui.authMessage.textContent =
-      "Supabase is not configured yet. Add values in supabase-config.js.";
-    await loadRecipesFromJson();
+      "Supabase is required. Add values in supabase-config.js.";
+    state.recipes = [];
   }
 
   buildFilterAndFormInputs();
@@ -151,6 +150,8 @@ function setupSupabaseClient() {
 }
 
 async function refreshSessionAndPermissions() {
+  updateAuthButtonState();
+
   const { data, error } = await state.supabase.auth.getSession();
   if (error) {
     console.error(error);
@@ -158,10 +159,12 @@ async function refreshSessionAndPermissions() {
     state.session = null;
     state.canAdd = false;
     updateAddButtonState();
+    updateAuthButtonState();
     return;
   }
 
   state.session = data.session;
+  updateAuthButtonState();
 
   if (!state.session?.user) {
     state.canAdd = false;
@@ -201,6 +204,11 @@ function updateAddButtonState() {
 
   ui.openAddRecipe.classList.remove("btn-ghost");
   ui.openAddRecipe.classList.add("btn-primary");
+}
+
+function updateAuthButtonState() {
+  const signedIn = Boolean(state.session?.user);
+  ui.signOutBtn.hidden = !signedIn;
 }
 
 async function loadRecipesFromSupabase() {
@@ -285,21 +293,6 @@ async function hydrateRecipeRatings() {
       userRating: myRatingsByRecipeId.get(recipe.id) || 0
     };
   });
-}
-
-async function loadRecipesFromJson() {
-  try {
-    const response = await fetch("recipes.json", { cache: "no-store" });
-    if (!response.ok) {
-      throw new Error("Could not load recipes.json");
-    }
-
-    const recipes = await response.json();
-    state.recipes = recipes.map(normalizeRecipe);
-  } catch (error) {
-    console.error(error);
-    state.recipes = [];
-  }
 }
 
 function clearAllFilters() {
@@ -947,19 +940,27 @@ function escapeHtml(value) {
 }
 
 function openDialog(dialogElement) {
+  const currentScrollY = window.scrollY;
+
   if (typeof dialogElement.showModal === "function") {
     dialogElement.showModal();
-    return;
+  } else {
+    dialogElement.setAttribute("open", "");
   }
 
-  dialogElement.setAttribute("open", "");
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (window.scrollY !== currentScrollY) {
+        window.scrollTo(0, currentScrollY);
+      }
+    });
+  });
 }
 
 function closeDialog(dialogElement) {
   if (typeof dialogElement.close === "function") {
     dialogElement.close();
-    return;
+  } else {
+    dialogElement.removeAttribute("open");
   }
-
-  dialogElement.removeAttribute("open");
 }

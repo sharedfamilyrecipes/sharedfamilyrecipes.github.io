@@ -542,6 +542,9 @@ select:focus {
   border-radius: 18px;
   width: min(860px, 94vw);
   max-height: 90vh;
+  position: fixed;
+  inset: 0;
+  margin: auto;
   padding: 0;
   box-shadow: 0 20px 42px rgba(0, 0, 0, 0.3);
 }
@@ -574,10 +577,6 @@ select:focus {
 .recipe-dialog article,
 .add-dialog form {
   padding: 1rem;
-}
-
-.recipe-dialog {
-  position: relative;
 }
 
 .recipe-dialog .dialog-shell {
