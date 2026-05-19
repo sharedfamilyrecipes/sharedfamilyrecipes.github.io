@@ -21,6 +21,38 @@
       </div>
 
       <div id="signedInProfile" class="navbar-profile" hidden aria-hidden="true">
+        <div id="navbarNotifications" class="navbar-notifications" hidden>
+          <button
+            type="button"
+            id="navbarNotificationsBell"
+            class="navbar-notifications-bell"
+            aria-haspopup="dialog"
+            aria-expanded="false"
+            aria-controls="navbarNotificationsDialog"
+          >
+            <span class="navbar-bell-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" role="img" focusable="false" aria-hidden="true">
+                <path
+                  d="M15 17h5l-1.4-1.4a2 2 0 0 1-.6-1.4V11a6 6 0 1 0-12 0v3.2a2 2 0 0 1-.6 1.4L4 17h5m6 0v1a3 3 0 1 1-6 0v-1m6 0H9"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </span>
+            <span class="sr-only">Open notifications</span>
+            <span id="navbarNotificationsUnreadDot" class="navbar-notifications-unread-dot" hidden></span>
+          </button>
+
+          <div id="navbarNotificationsDialog" class="navbar-notifications-dialog" hidden aria-hidden="true">
+            <p class="navbar-notifications-meta">Latest 5 notifications</p>
+            <ul id="navbarNotificationsList" class="navbar-notifications-list" aria-live="polite"></ul>
+            <p id="navbarNotificationsEmpty" class="navbar-notifications-empty" hidden>No notifications yet.</p>
+          </div>
+        </div>
+
         <button
           type="button"
           id="profileMenuTrigger"

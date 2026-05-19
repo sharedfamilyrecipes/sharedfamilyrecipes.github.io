@@ -30,3 +30,5 @@ Run [supabase/migrations/20260519_public_profile_reads.sql](supabase/migrations/
 Run [supabase/migrations/20260519_recipe_comments.sql](supabase/migrations/20260519_recipe_comments.sql) to add recipe comments. This migration also allows users with can_add=true in recipe_editors to remove any comment for moderation.
 
 If recipe comments are already deployed, run [supabase/migrations/20260519_recipe_comment_replies.sql](supabase/migrations/20260519_recipe_comment_replies.sql) to add parent comment support for threaded replies.
+
+Run [supabase/migrations/20260519_notifications.sql](supabase/migrations/20260519_notifications.sql) to add profile notifications (bell), unread/read tracking, and per-user toggles for comment, reply, and rating notifications.

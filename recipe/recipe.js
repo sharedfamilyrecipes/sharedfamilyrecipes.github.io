@@ -786,6 +786,9 @@ async function handleCommentSubmit(event) {
 async function submitRecipeComment(options) {
   const content = cleanText(options?.content || "").slice(0, 1200);
   const parentCommentId = cleanText(options?.parentCommentId || "");
+  const parentComment = parentCommentId
+    ? state.comments.find((comment) => comment.id === parentCommentId) || null
+    : null;
   const onStart = typeof options?.onStart === "function" ? options.onStart : () => {};
   const onDone = typeof options?.onDone === "function" ? options.onDone : () => {};
 
@@ -825,6 +828,12 @@ async function submitRecipeComment(options) {
   if (!parentCommentId) {
     ui.commentInput.value = "";
   }
+
+  await notifyCommentEvent({
+    parentCommentId,
+    parentComment
+  });
+
   state.activeReplyParentId = "";
   ui.commentsStatus.textContent = parentCommentId ? "Reply posted." : "Comment posted.";
   await hydrateRecipeComments(state.recipe.id);
@@ -863,6 +872,20 @@ async function submitRecipeRating(rating) {
     return;
   }
 
+  let hadExistingRating = false;
+  const { data: existingRating, error: existingRatingError } = await state.supabase
+    .from("recipe_ratings")
+    .select("rating")
+    .eq("recipe_id", state.recipe.id)
+    .eq("user_id", state.session.user.id)
+    .maybeSingle();
+
+  if (existingRatingError && existingRatingError.code !== "PGRST116") {
+    console.error(existingRatingError);
+  }
+
+  hadExistingRating = Number(existingRating?.rating || 0) > 0;
+
   const { error } = await state.supabase.from("recipe_ratings").upsert(
     {
       recipe_id: state.recipe.id,
@@ -881,8 +904,104 @@ async function submitRecipeRating(rating) {
   }
 
   ui.recipeStatus.textContent = "Rating saved.";
+
+  if (!hadExistingRating) {
+    await notifyRatingEvent();
+  }
+
   await hydrateRecipeRatings(state.recipe.id);
   renderRatingBlock();
+}
+
+function getCurrentActorDisplayName() {
+  if (window.SharedProfileUtils?.getDisplayName) {
+    return window.SharedProfileUtils.getDisplayName(state.currentProfile, state.session?.user || null);
+  }
+
+  return cleanText(state.session?.user?.email).split("@")[0] || "Family member";
+}
+
+async function notifyCommentEvent({ parentCommentId, parentComment }) {
+  if (!window.SharedNotifications || !state.session?.user?.id || !state.recipe?.id) {
+    return;
+  }
+
+  const actorUserId = cleanText(state.session.user.id);
+  const actorDisplayName = getCurrentActorDisplayName();
+
+  if (parentCommentId) {
+    const parentUserId = cleanText(parentComment?.userId);
+    if (!parentUserId || parentUserId === actorUserId) {
+      return;
+    }
+
+    await createUserNotification({
+      recipientUserId: parentUserId,
+      eventType: window.SharedNotifications.EVENT_TYPES.REPLY,
+      actorUserId,
+      actorDisplayName
+    });
+    return;
+  }
+
+  const recipeOwnerId = cleanText(state.recipe.createdByUserId);
+  if (!recipeOwnerId || recipeOwnerId === actorUserId) {
+    return;
+  }
+
+  await createUserNotification({
+    recipientUserId: recipeOwnerId,
+    eventType: window.SharedNotifications.EVENT_TYPES.COMMENT,
+    actorUserId,
+    actorDisplayName
+  });
+}
+
+async function notifyRatingEvent() {
+  if (!window.SharedNotifications || !state.session?.user?.id || !state.recipe?.id) {
+    return;
+  }
+
+  const actorUserId = cleanText(state.session.user.id);
+  const recipeOwnerId = cleanText(state.recipe.createdByUserId);
+
+  if (!recipeOwnerId || recipeOwnerId === actorUserId) {
+    return;
+  }
+
+  await createUserNotification({
+    recipientUserId: recipeOwnerId,
+    eventType: window.SharedNotifications.EVENT_TYPES.RATING,
+    actorUserId,
+    actorDisplayName: getCurrentActorDisplayName()
+  });
+}
+
+async function createUserNotification({ recipientUserId, eventType, actorUserId, actorDisplayName }) {
+  const safeRecipientUserId = cleanText(recipientUserId);
+  if (!safeRecipientUserId || !eventType) {
+    return;
+  }
+
+  const message = window.SharedNotifications.buildNotificationMessage({
+    eventType,
+    actorDisplayName,
+    recipeTitle: state.recipe?.title
+  });
+
+  const { error } = await state.supabase.from("user_notifications").insert({
+    user_id: safeRecipientUserId,
+    actor_user_id: cleanText(actorUserId),
+    event_type: cleanText(eventType),
+    recipe_id: cleanText(state.recipe?.id),
+    recipe_title: cleanText(state.recipe?.title),
+    message,
+    link_url: window.SharedNotifications.buildRecipeHref(state.recipe?.id)
+  });
+
+  if (error && error.code !== "42P01" && error.code !== "42501" && error.code !== "PGRST205") {
+    console.error(error);
+  }
 }
 
 async function copyRecipeLink() {

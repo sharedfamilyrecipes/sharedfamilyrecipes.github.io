@@ -92,10 +92,21 @@ h3 {
   text-overflow: ellipsis;
 }
 
-.profile-grid {
+.profile-stack {
   display: grid;
   gap: 1rem;
-  grid-template-columns: 1.3fr 0.9fr;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.toggle-row input[type="checkbox"] {
+  width: 1.1rem;
+  height: 1.1rem;
 }
 
 .profile-form {
@@ -137,10 +148,6 @@ input {
 }
 
 @media (max-width: 860px) {
-  .profile-grid {
-    grid-template-columns: 1fr;
-  }
-
   .profile-summary {
     align-items: flex-start;
   }

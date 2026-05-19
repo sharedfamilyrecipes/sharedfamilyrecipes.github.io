@@ -648,9 +648,17 @@ function renderRecipeGrid(recipes) {
       card.querySelector(".added-by-name").textContent = recipe.addedBy;
       const authorAvatar = card.querySelector(".recipe-author-avatar");
       if (authorAvatar && window.SharedProfileUtils?.renderAvatar) {
+        const isOwnRecipe =
+          Boolean(state.session?.user?.id) &&
+          Boolean(recipe.createdByUserId) &&
+          recipe.createdByUserId === state.session.user.id;
+        const resolvedAuthorProfile =
+          recipe.authorProfile ||
+          (isOwnRecipe ? state.currentProfile : null) ||
+          { display_name: recipe.addedBy, avatar_kind: "initials" };
         window.SharedProfileUtils.renderAvatar(
           authorAvatar,
-          recipe.authorProfile || { display_name: recipe.addedBy, avatar_kind: "initials" },
+          resolvedAuthorProfile,
           null,
           state.supabase
         );
@@ -751,6 +759,9 @@ async function submitRecipeRating(recipeId, rating) {
     return;
   }
 
+  const recipe = state.recipes.find((item) => item.id === recipeId) || null;
+  const hadExistingRating = Number(recipe?.userRating || 0) > 0;
+
   const { error } = await state.supabase.from("recipe_ratings").upsert(
     {
       recipe_id: recipeId,
@@ -768,8 +779,38 @@ async function submitRecipeRating(recipeId, rating) {
     return;
   }
 
+  if (!hadExistingRating) {
+    await createRatingNotification(recipe);
+  }
+
   await hydrateRecipeRatings();
   render();
+}
+
+async function createRatingNotification(recipe) {
+  const recipeOwnerId = cleanText(recipe?.createdByUserId);
+  const actorUserId = cleanText(state.session?.user?.id);
+
+  if (!recipeOwnerId || !actorUserId || recipeOwnerId === actorUserId) {
+    return;
+  }
+
+  const message = "Your recipe has received a new rating.";
+  const linkUrl = `./recipe/index.html?id=${encodeURIComponent(cleanText(recipe?.id))}`;
+
+  const { error } = await state.supabase.from("user_notifications").insert({
+    user_id: recipeOwnerId,
+    actor_user_id: actorUserId,
+    event_type: "rating",
+    recipe_id: cleanText(recipe?.id),
+    recipe_title: cleanText(recipe?.title),
+    message,
+    link_url: linkUrl
+  });
+
+  if (error && error.code !== "42P01" && error.code !== "42501" && error.code !== "PGRST205") {
+    console.error(error);
+  }
 }
 
 async function handleAddRecipeSubmit(event) {

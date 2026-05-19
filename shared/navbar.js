@@ -4,6 +4,18 @@
   const scriptUrl = document.currentScript ? new URL(document.currentScript.src) : null;
   const navbarUrl = scriptUrl ? new URL("navbar.html", scriptUrl).href : "./shared/navbar.html";
   let menuEventsBound = false;
+  const notificationsState = {
+    supabase: null,
+    userId: "",
+    prefs: {
+      comment_notifications: true,
+      reply_notifications: true,
+      rating_notifications: true
+    },
+    notifications: [],
+    available: true,
+    isOpen: false
+  };
   const authConfig = {
     getSupabaseClient: null,
     onSignOutError: null
@@ -54,12 +66,26 @@
       if (isOpen) {
         closeProfileMenu();
       } else {
+        closeNotificationsMenu();
         openProfileMenu();
       }
     });
 
+    elements.navbarNotificationsBell?.addEventListener("click", async () => {
+      const isOpen = !elements.navbarNotificationsDialog?.hidden;
+      if (isOpen) {
+        closeNotificationsMenu();
+        return;
+      }
+
+      closeProfileMenu();
+      openNotificationsMenu();
+      await markVisibleNotificationsRead();
+    });
+
     elements.profileMenuBackdrop?.addEventListener("click", () => {
       closeProfileMenu();
+      closeNotificationsMenu();
     });
 
     elements.profileMenuLink?.addEventListener("click", () => {
@@ -74,6 +100,7 @@
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
         closeProfileMenu();
+        closeNotificationsMenu();
       }
     });
 
@@ -147,6 +174,38 @@
     }
   }
 
+  function openNotificationsMenu() {
+    const elements = getElements();
+    if (elements.navbarNotificationsDialog) {
+      elements.navbarNotificationsDialog.hidden = false;
+      elements.navbarNotificationsDialog.setAttribute("aria-hidden", "false");
+    }
+    if (elements.profileMenuBackdrop) {
+      elements.profileMenuBackdrop.hidden = false;
+      elements.profileMenuBackdrop.setAttribute("aria-hidden", "false");
+    }
+    if (elements.navbarNotificationsBell) {
+      elements.navbarNotificationsBell.setAttribute("aria-expanded", "true");
+    }
+    notificationsState.isOpen = true;
+  }
+
+  function closeNotificationsMenu() {
+    const elements = getElements();
+    if (elements.navbarNotificationsDialog) {
+      elements.navbarNotificationsDialog.hidden = true;
+      elements.navbarNotificationsDialog.setAttribute("aria-hidden", "true");
+    }
+    if (elements.navbarNotificationsBell) {
+      elements.navbarNotificationsBell.setAttribute("aria-expanded", "false");
+    }
+    if (elements.profileMenuBackdrop && (!elements.profileMenuDialog || elements.profileMenuDialog.hidden)) {
+      elements.profileMenuBackdrop.hidden = true;
+      elements.profileMenuBackdrop.setAttribute("aria-hidden", "true");
+    }
+    notificationsState.isOpen = false;
+  }
+
   function getElements() {
     return {
       authForm: document.querySelector("#authForm"),
@@ -161,6 +220,12 @@
       profileMenuTrigger: document.querySelector("#profileMenuTrigger"),
       profileMenuDialog: document.querySelector("#profileMenuDialog"),
       profileMenuBackdrop: document.querySelector("#profileMenuBackdrop"),
+      navbarNotifications: document.querySelector("#navbarNotifications"),
+      navbarNotificationsBell: document.querySelector("#navbarNotificationsBell"),
+      navbarNotificationsDialog: document.querySelector("#navbarNotificationsDialog"),
+      navbarNotificationsUnreadDot: document.querySelector("#navbarNotificationsUnreadDot"),
+      navbarNotificationsList: document.querySelector("#navbarNotificationsList"),
+      navbarNotificationsEmpty: document.querySelector("#navbarNotificationsEmpty"),
       profileAvatar: document.querySelector("#profileAvatar"),
       profileDisplayName: document.querySelector("#profileDisplayName"),
       profileMeta: document.querySelector("#profileMeta"),
@@ -171,6 +236,9 @@
   function setSignedOutState(message) {
     const elements = getElements();
     closeProfileMenu();
+    closeNotificationsMenu();
+    resetNotificationsState();
+    renderNotifications();
     if (elements.authForm) {
       elements.authForm.classList.add("signed-out");
       elements.authForm.classList.remove("signed-in");
@@ -229,6 +297,231 @@
     if (window.SharedProfileUtils?.renderAvatar) {
       window.SharedProfileUtils.renderAvatar(elements.profileAvatar, options.profile, options.user, options.supabase);
     }
+
+    hydrateNotifications({
+      supabase: options.supabase || (typeof authConfig.getSupabaseClient === "function" ? authConfig.getSupabaseClient() : null),
+      userId: cleanText(options.user?.id)
+    });
+  }
+
+  function resetNotificationsState() {
+    notificationsState.supabase = null;
+    notificationsState.userId = "";
+    notificationsState.notifications = [];
+    notificationsState.available = true;
+    notificationsState.isOpen = false;
+    notificationsState.prefs = {
+      comment_notifications: true,
+      reply_notifications: true,
+      rating_notifications: true
+    };
+  }
+
+  function cleanText(value) {
+    return String(value || "").trim();
+  }
+
+  function getPreferenceKey(eventType) {
+    if (eventType === "comment") {
+      return "comment_notifications";
+    }
+
+    if (eventType === "reply") {
+      return "reply_notifications";
+    }
+
+    if (eventType === "rating") {
+      return "rating_notifications";
+    }
+
+    return "";
+  }
+
+  function isNotificationEnabled(eventType) {
+    const key = getPreferenceKey(cleanText(eventType));
+    if (!key) {
+      return true;
+    }
+
+    return Boolean(notificationsState.prefs[key]);
+  }
+
+  function formatNotificationDate(value) {
+    const parsed = new Date(value || "");
+    if (Number.isNaN(parsed.getTime())) {
+      return "Just now";
+    }
+
+    return parsed.toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit"
+    });
+  }
+
+  async function hydrateNotifications({ supabase, userId }) {
+    notificationsState.supabase = supabase || null;
+    notificationsState.userId = cleanText(userId);
+    notificationsState.notifications = [];
+
+    if (!notificationsState.supabase || !notificationsState.userId) {
+      notificationsState.available = false;
+      renderNotifications();
+      return;
+    }
+
+    await loadNotificationPreferences();
+    await loadNotifications();
+    renderNotifications();
+  }
+
+  async function loadNotificationPreferences() {
+    const { data, error } = await notificationsState.supabase
+      .from("user_notification_preferences")
+      .select("comment_notifications,reply_notifications,rating_notifications")
+      .eq("user_id", notificationsState.userId)
+      .maybeSingle();
+
+    if (error) {
+      if (error.code === "42P01" || error.code === "42501" || error.code === "PGRST205") {
+        notificationsState.available = false;
+        return;
+      }
+
+      console.error(error);
+      notificationsState.available = false;
+      return;
+    }
+
+    notificationsState.available = true;
+    notificationsState.prefs = {
+      comment_notifications: Boolean(data?.comment_notifications ?? true),
+      reply_notifications: Boolean(data?.reply_notifications ?? true),
+      rating_notifications: Boolean(data?.rating_notifications ?? true)
+    };
+  }
+
+  async function loadNotifications() {
+    if (!notificationsState.available) {
+      notificationsState.notifications = [];
+      return;
+    }
+
+    const { data, error } = await notificationsState.supabase
+      .from("user_notifications")
+      .select("id,event_type,message,link_url,recipe_id,created_at,read_at")
+      .eq("user_id", notificationsState.userId)
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+    if (error) {
+      if (error.code === "42P01" || error.code === "42501" || error.code === "PGRST205") {
+        notificationsState.available = false;
+        notificationsState.notifications = [];
+        return;
+      }
+
+      console.error(error);
+      notificationsState.notifications = [];
+      return;
+    }
+
+    notificationsState.notifications = Array.isArray(data) ? data : [];
+  }
+
+  async function markVisibleNotificationsRead() {
+    if (!notificationsState.available || !notificationsState.supabase || !notificationsState.userId) {
+      return;
+    }
+
+    const unreadIds = notificationsState.notifications
+      .filter((item) => !item.read_at)
+      .map((item) => item.id)
+      .filter(Boolean);
+
+    if (!unreadIds.length) {
+      return;
+    }
+
+    const { error } = await notificationsState.supabase
+      .from("user_notifications")
+      .update({ read_at: new Date().toISOString() })
+      .in("id", unreadIds)
+      .eq("user_id", notificationsState.userId);
+
+    if (error) {
+      if (error.code !== "42P01" && error.code !== "42501" && error.code !== "PGRST205") {
+        console.error(error);
+      }
+      return;
+    }
+
+    notificationsState.notifications = notificationsState.notifications.map((item) => ({
+      ...item,
+      read_at: item.read_at || new Date().toISOString()
+    }));
+
+    renderNotifications();
+  }
+
+  function renderNotifications() {
+    const elements = getElements();
+    const signedIn = Boolean(elements.signedInProfile && !elements.signedInProfile.hidden);
+    const shouldShow = signedIn && notificationsState.available;
+
+    if (elements.navbarNotifications) {
+      elements.navbarNotifications.hidden = !shouldShow;
+    }
+
+    if (!shouldShow) {
+      return;
+    }
+
+    const unreadCount = notificationsState.notifications.filter((item) => !item.read_at).length;
+    if (elements.navbarNotificationsUnreadDot) {
+      elements.navbarNotificationsUnreadDot.hidden = unreadCount === 0;
+    }
+
+    if (!elements.navbarNotificationsList || !elements.navbarNotificationsEmpty) {
+      return;
+    }
+
+    const filtered = notificationsState.notifications.filter((item) => isNotificationEnabled(item.event_type));
+    elements.navbarNotificationsList.innerHTML = "";
+    elements.navbarNotificationsEmpty.hidden = true;
+
+    if (!filtered.length) {
+      elements.navbarNotificationsEmpty.hidden = false;
+      elements.navbarNotificationsEmpty.textContent = notificationsState.notifications.length
+        ? "No notifications match your current toggles."
+        : "No notifications yet.";
+      return;
+    }
+
+    filtered.forEach((item) => {
+      const li = document.createElement("li");
+      li.className = `navbar-notification-item${item.read_at ? "" : " unread"}`;
+
+      const message = document.createElement("p");
+      message.className = "navbar-notification-message";
+      message.textContent = cleanText(item.message) || "Notification";
+
+      const link = document.createElement("a");
+      link.className = "navbar-notification-link";
+      link.href = cleanText(item.link_url) || "#";
+      link.textContent = "Click here to view";
+      link.addEventListener("click", () => {
+        closeNotificationsMenu();
+      });
+
+      const time = document.createElement("p");
+      time.className = "navbar-notification-time";
+      time.textContent = formatNotificationDate(item.created_at);
+
+      li.append(message, link, time);
+      elements.navbarNotificationsList.append(li);
+    });
   }
 
   window.SharedNavbar = {

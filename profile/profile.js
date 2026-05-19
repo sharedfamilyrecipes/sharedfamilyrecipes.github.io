@@ -3,7 +3,13 @@ const state = {
   useSupabase: false,
   session: null,
   profile: null,
-  selectedAvatarKind: "initials"
+  selectedAvatarKind: "initials",
+  notificationPrefs: {
+    comment_notifications: true,
+    reply_notifications: true,
+    rating_notifications: true
+  },
+  notificationsAvailable: true
 };
 
 const ui = {
@@ -30,7 +36,12 @@ const ui = {
   profileSummaryEmail: document.querySelector("#profileSummaryEmail"),
   profileGateMessage: document.querySelector("#profileGateMessage"),
   newPassword: document.querySelector("#newPassword"),
-  confirmPassword: document.querySelector("#confirmPassword")
+  confirmPassword: document.querySelector("#confirmPassword"),
+  notificationPrefsForm: document.querySelector("#notificationPrefsForm"),
+  prefComments: document.querySelector("#prefComments"),
+  prefReplies: document.querySelector("#prefReplies"),
+  prefRatings: document.querySelector("#prefRatings"),
+  notificationsStatus: document.querySelector("#notificationsStatus")
 };
 
 init().catch((error) => {
@@ -90,6 +101,10 @@ function bindEvents() {
       renderProfileSummary();
     }
   });
+
+  [ui.prefComments, ui.prefReplies, ui.prefRatings].forEach((toggle) => {
+    toggle?.addEventListener("change", saveNotificationPreferences);
+  });
 }
 
 function setupSupabaseClient() {
@@ -121,21 +136,26 @@ async function refreshSession() {
 
   if (!state.session?.user) {
     state.profile = null;
+    state.notificationPrefs =
+      window.SharedNotifications?.makeDefaultPreferences?.() || state.notificationPrefs;
     ui.profileGateMessage.textContent = "";
     setFormsDisabled(true);
     window.SharedNavbar?.setSignedOutState("");
     renderProfileSummary();
+    renderNotificationPreferences();
     return;
   }
 
   setFormsDisabled(false);
   await syncCurrentUserProfile();
   state.profile = await loadCurrentUserProfile();
+  state.notificationPrefs = await loadNotificationPreferences();
   state.selectedAvatarKind = state.profile?.avatar_kind === "upload" ? "upload" : "initials";
   ui.displayName.value = state.profile?.display_name || "";
   ui.profileGateMessage.textContent = "";
   updateNavbarProfile();
   renderProfileSummary();
+  renderNotificationPreferences();
 }
 
 function renderProfileSummary() {
@@ -160,6 +180,10 @@ function setFormsDisabled(disabled) {
   });
   ui.passwordForm.querySelectorAll("input, button").forEach((element) => {
     element.disabled = disabled;
+  });
+
+  ui.notificationPrefsForm?.querySelectorAll("input").forEach((element) => {
+    element.disabled = disabled || !state.notificationsAvailable;
   });
 }
 
@@ -441,6 +465,97 @@ function updateNavbarProfile() {
     supabase: state.supabase,
     message: ""
   });
+}
+
+async function loadNotificationPreferences() {
+  const defaults = window.SharedNotifications?.makeDefaultPreferences?.() || {
+    comment_notifications: true,
+    reply_notifications: true,
+    rating_notifications: true
+  };
+
+  if (!state.session?.user?.id) {
+    return defaults;
+  }
+
+  const { data, error } = await state.supabase
+    .from("user_notification_preferences")
+    .select("comment_notifications,reply_notifications,rating_notifications")
+    .eq("user_id", state.session.user.id)
+    .maybeSingle();
+
+  if (error) {
+    if (error.code === "42P01" || error.code === "42501" || error.code === "PGRST205") {
+      state.notificationsAvailable = false;
+      ui.notificationsStatus.textContent =
+        "Notifications are unavailable. Run the notifications migration in Supabase.";
+      return defaults;
+    }
+
+    console.error(error);
+    return defaults;
+  }
+
+  state.notificationsAvailable = true;
+  const resolved = {
+    ...defaults,
+    ...(data || {})
+  };
+
+  await state.supabase.from("user_notification_preferences").upsert(
+    {
+      user_id: state.session.user.id,
+      ...resolved,
+      updated_at: new Date().toISOString()
+    },
+    {
+      onConflict: "user_id"
+    }
+  );
+
+  return resolved;
+}
+
+function renderNotificationPreferences() {
+  ui.prefComments.checked = Boolean(state.notificationPrefs.comment_notifications);
+  ui.prefReplies.checked = Boolean(state.notificationPrefs.reply_notifications);
+  ui.prefRatings.checked = Boolean(state.notificationPrefs.rating_notifications);
+  ui.notificationsStatus.textContent = state.notificationsAvailable
+    ? ""
+    : "Notifications are unavailable right now.";
+}
+
+async function saveNotificationPreferences() {
+  if (!state.session?.user?.id || !state.notificationsAvailable) {
+    return;
+  }
+
+  state.notificationPrefs = {
+    comment_notifications: Boolean(ui.prefComments.checked),
+    reply_notifications: Boolean(ui.prefReplies.checked),
+    rating_notifications: Boolean(ui.prefRatings.checked)
+  };
+
+  ui.notificationsStatus.textContent = "Saving notification preferences...";
+
+  const { error } = await state.supabase.from("user_notification_preferences").upsert(
+    {
+      user_id: state.session.user.id,
+      ...state.notificationPrefs,
+      updated_at: new Date().toISOString()
+    },
+    {
+      onConflict: "user_id"
+    }
+  );
+
+  if (error) {
+    console.error(error);
+    ui.notificationsStatus.textContent = "Could not save notification preferences.";
+    return;
+  }
+
+  ui.notificationsStatus.textContent = "Notification preferences updated.";
 }
 
 function getProfileSaveErrorMessage(error) {

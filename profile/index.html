@@ -40,51 +40,71 @@
         <p id="profileGateMessage" class="status"></p>
       </section>
 
-      <section class="profile-grid">
-        <section class="panel">
-          <h2>Public Profile</h2>
-          <form id="profileForm" class="profile-form" novalidate>
-            <label>
-              Display Name
-              <input id="displayName" name="displayName" type="text" maxlength="60" placeholder="How your name should appear" />
-            </label>
+      <section class="profile-stack">
+          <section class="panel">
+            <h2>Public Profile</h2>
+            <form id="profileForm" class="profile-form" novalidate>
+              <label>
+                Display Name
+                <input id="displayName" name="displayName" type="text" maxlength="60" placeholder="How your name should appear" />
+              </label>
 
-            <label>
-              Upload Photo
-              <input id="avatarUpload" name="avatarUpload" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
-            </label>
+              <label>
+                Upload Photo
+                <input id="avatarUpload" name="avatarUpload" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
+              </label>
 
-            <div class="profile-actions">
-              <button type="submit" class="btn btn-primary">Save Profile</button>
-              <button type="button" id="useInitialsBtn" class="btn btn-ghost">Use Initials Only</button>
-            </div>
-            <p id="profileStatus" class="status"></p>
-          </form>
-        </section>
+              <div class="profile-actions">
+                <button type="submit" class="btn btn-primary">Save Profile</button>
+                <button type="button" id="useInitialsBtn" class="btn btn-ghost">Use Initials Only</button>
+              </div>
+              <p id="profileStatus" class="status"></p>
+            </form>
+          </section>
 
-        <section class="panel">
-          <h2>Password</h2>
-          <form id="passwordForm" class="profile-form" novalidate>
-            <label>
-              New Password
-              <input id="newPassword" name="newPassword" type="password" autocomplete="new-password" minlength="8" />
-            </label>
-            <label>
-              Confirm Password
-              <input id="confirmPassword" name="confirmPassword" type="password" autocomplete="new-password" minlength="8" />
-            </label>
-            <div class="profile-actions">
-              <button type="submit" class="btn btn-primary">Change Password</button>
-            </div>
-            <p id="passwordStatus" class="status"></p>
-          </form>
-        </section>
+          <section class="panel">
+            <h2>Password</h2>
+            <form id="passwordForm" class="profile-form" novalidate>
+              <label>
+                New Password
+                <input id="newPassword" name="newPassword" type="password" autocomplete="new-password" minlength="8" />
+              </label>
+              <label>
+                Confirm Password
+                <input id="confirmPassword" name="confirmPassword" type="password" autocomplete="new-password" minlength="8" />
+              </label>
+              <div class="profile-actions">
+                <button type="submit" class="btn btn-primary">Change Password</button>
+              </div>
+              <p id="passwordStatus" class="status"></p>
+            </form>
+          </section>
+
+          <section class="panel">
+            <h2>Notification Preferences</h2>
+            <form id="notificationPrefsForm" class="profile-form" novalidate>
+              <label class="toggle-row">
+                <span>Comments on your recipes</span>
+                <input id="prefComments" type="checkbox" checked />
+              </label>
+              <label class="toggle-row">
+                <span>Replies to your comments</span>
+                <input id="prefReplies" type="checkbox" checked />
+              </label>
+              <label class="toggle-row">
+                <span>New ratings on your recipes</span>
+                <input id="prefRatings" type="checkbox" checked />
+              </label>
+              <p id="notificationsStatus" class="status"></p>
+            </form>
+          </section>
       </section>
     </main>
 
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script defer src="../supabase-config.js"></script>
     <script defer src="../shared/profile-utils.js"></script>
+    <script defer src="../shared/notifications.js"></script>
     <script defer src="../shared/auth-utils.js"></script>
     <script defer src="../shared/navbar.js"></script>
     <script defer src="profile.js"></script>
