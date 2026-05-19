@@ -54,6 +54,31 @@
             <ol id="stepsList" class="steps"></ol>
           </section>
         </div>
+
+        <section class="comments-box" aria-label="Recipe comments">
+          <div class="comments-head">
+            <h2>Comments</h2>
+            <p id="commentsMeta" class="comments-meta"></p>
+          </div>
+          <p id="commentsEmpty" class="comments-empty" hidden>No comments yet. Be the first one.</p>
+          <ul id="commentsList" class="comments-list" aria-live="polite"></ul>
+
+          <form id="commentForm" class="comment-form">
+            <label for="commentInput">Add a comment</label>
+            <textarea
+              id="commentInput"
+              name="comment"
+              maxlength="1200"
+              rows="4"
+              placeholder="Share a tip, tweak, or serving idea..."
+              required
+            ></textarea>
+            <div class="comment-form-actions">
+              <button id="commentSubmit" type="submit" class="btn btn-secondary">Post Comment</button>
+              <p id="commentsStatus" class="comments-status" aria-live="polite"></p>
+            </div>
+          </form>
+        </section>
       </section>
 
       <p id="recipeStatus" class="status"></p>

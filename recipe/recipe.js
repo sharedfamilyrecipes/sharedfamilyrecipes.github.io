@@ -3,10 +3,14 @@ const state = {
   useSupabase: false,
   session: null,
   currentProfile: null,
+  canModerateComments: false,
+  activeReplyParentId: "",
   recipe: null,
   ratingAverage: 0,
   ratingCount: 0,
-  userRating: 0
+  userRating: 0,
+  comments: [],
+  commentsAvailable: true
 };
 
 const ui = {
@@ -30,6 +34,13 @@ const ui = {
   ratingSummary: document.querySelector("#ratingSummary"),
   ratingMeta: document.querySelector("#ratingMeta"),
   ratingInput: document.querySelector("#ratingInput"),
+  commentsMeta: document.querySelector("#commentsMeta"),
+  commentsEmpty: document.querySelector("#commentsEmpty"),
+  commentsList: document.querySelector("#commentsList"),
+  commentForm: document.querySelector("#commentForm"),
+  commentInput: document.querySelector("#commentInput"),
+  commentSubmit: document.querySelector("#commentSubmit"),
+  commentsStatus: document.querySelector("#commentsStatus"),
   copyRecipeLink: document.querySelector("#copyRecipeLink")
 };
 
@@ -46,7 +57,7 @@ async function init() {
   configureSharedNavbarAuth();
 
   if (!state.useSupabase) {
-    ui.recipeStatus.textContent = "Supabase is required. Update supabase-config.js.";
+    ui.recipeStatus.textContent = "Recipe services are currently unavailable.";
     ui.copyRecipeLink.disabled = true;
     return;
   }
@@ -64,8 +75,9 @@ async function init() {
   state.supabase.auth.onAuthStateChange(async () => {
     await refreshSession();
     if (state.recipe?.id) {
-      await hydrateRecipeRatings(state.recipe.id);
+      await Promise.all([hydrateRecipeRatings(state.recipe.id), hydrateRecipeComments(state.recipe.id)]);
       renderRatingBlock();
+      renderCommentsBlock();
     }
   });
 }
@@ -91,6 +103,7 @@ function bindEvents() {
   ui.signInBtn?.addEventListener("click", signIn);
   ui.signUpBtn?.addEventListener("click", signUp);
   ui.copyRecipeLink.addEventListener("click", copyRecipeLink);
+  ui.commentForm?.addEventListener("submit", handleCommentSubmit);
 }
 
 function setupSupabaseClient() {
@@ -143,13 +156,41 @@ async function refreshSession() {
 
   if (!state.session?.user) {
     state.currentProfile = null;
+    state.canModerateComments = false;
     window.SharedNavbar?.setSignedOutState("");
+    renderCommentsBlock();
     return;
   }
 
   await syncCurrentUserProfile();
   state.currentProfile = await loadCurrentUserProfile();
+  await hydrateCommentModerationPermission();
   updateNavbarProfile();
+  renderCommentsBlock();
+}
+
+async function hydrateCommentModerationPermission() {
+  if (!state.session?.user?.id) {
+    state.canModerateComments = false;
+    return;
+  }
+
+  const { data, error } = await state.supabase
+    .from("recipe_editors")
+    .select("can_add")
+    .eq("user_id", state.session.user.id);
+
+  if (error) {
+    if (error.code !== "42P01" && error.code !== "42501" && error.code !== "PGRST205") {
+      console.error(error);
+    }
+    state.canModerateComments = false;
+    return;
+  }
+
+  state.canModerateComments = Array.isArray(data)
+    ? data.some((row) => Boolean(row.can_add))
+    : false;
 }
 
 async function syncCurrentUserProfile() {
@@ -249,6 +290,7 @@ async function loadRecipe(recipeId) {
 
   state.recipe = recipe;
   await hydrateRecipeRatings(recipe.id);
+  await hydrateRecipeComments(recipe.id);
   renderRecipe();
   ui.recipePanel.hidden = false;
   ui.recipeStatus.textContent = "";
@@ -343,6 +385,85 @@ function renderRecipe() {
   });
 
   renderRatingBlock();
+  renderCommentsBlock();
+}
+
+async function hydrateRecipeComments(recipeId) {
+  state.comments = [];
+  state.commentsAvailable = true;
+
+  const { data: commentRows, error: commentError } = await state.supabase
+    .from("recipe_comments")
+    .select("id,recipe_id,user_id,parent_comment_id,content,created_at")
+    .eq("recipe_id", recipeId)
+    .order("created_at", { ascending: true });
+
+  if (commentError) {
+    if (commentError.code === "42P01" || commentError.code === "PGRST205") {
+      state.commentsAvailable = false;
+      return;
+    }
+
+    console.error(commentError);
+    return;
+  }
+
+  const userIds = [...new Set((commentRows || []).map((row) => cleanText(row.user_id)).filter(Boolean))];
+  const profileByUserId = new Map();
+
+  if (userIds.length) {
+    const { data: profileRows, error: profileError } = await state.supabase
+      .from("user_profiles")
+      .select("user_id,display_name,email,avatar_kind,avatar_path,avatar_icon")
+      .in("user_id", userIds);
+
+    if (!profileError) {
+      (profileRows || []).forEach((row) => {
+        const userId = cleanText(row.user_id);
+        if (!userId) {
+          return;
+        }
+
+        profileByUserId.set(userId, {
+          display_name: cleanText(row.display_name),
+          email: cleanText(row.email),
+          avatar_kind: cleanText(row.avatar_kind),
+          avatar_path: cleanText(row.avatar_path),
+          avatar_icon: cleanText(row.avatar_icon)
+        });
+      });
+    } else if (profileError.code !== "42P01" && profileError.code !== "42501" && profileError.code !== "PGRST205") {
+      console.error(profileError);
+    }
+  }
+
+  state.comments = (commentRows || [])
+    .map((row) => {
+      const userId = cleanText(row.user_id);
+      const fallbackName = userId ? "Family member" : "Guest";
+      const profile = profileByUserId.get(userId) || {
+        display_name: fallbackName,
+        avatar_kind: "initials",
+        avatar_path: "",
+        avatar_icon: ""
+      };
+
+      const displayName = window.SharedProfileUtils?.getDisplayName
+        ? window.SharedProfileUtils.getDisplayName(profile, null)
+        : cleanText(profile.display_name) || fallbackName;
+
+      return {
+        id: cleanText(row.id),
+        recipeId: cleanText(row.recipe_id),
+        userId,
+        parentCommentId: cleanText(row.parent_comment_id),
+        content: cleanText(row.content),
+        createdAt: row.created_at || null,
+        authorProfile: profile,
+        authorName: displayName || fallbackName
+      };
+    })
+    .filter((comment) => comment.id && comment.recipeId && comment.content);
 }
 
 async function hydrateRecipeRatings(recipeId) {
@@ -430,6 +551,307 @@ function renderRatingBlock() {
   }
 }
 
+function renderCommentsBlock() {
+  if (!ui.commentsList || !ui.commentsMeta || !ui.commentsEmpty || !ui.commentInput || !ui.commentSubmit) {
+    return;
+  }
+
+  const signedIn = Boolean(state.session?.user?.id);
+
+  if (!state.commentsAvailable) {
+    ui.commentsMeta.textContent = "Comments unavailable";
+    ui.commentsList.innerHTML = "";
+    ui.commentsEmpty.hidden = false;
+    ui.commentsEmpty.textContent = "Comments are not available right now.";
+    ui.commentInput.value = "";
+    ui.commentInput.disabled = true;
+    ui.commentSubmit.disabled = true;
+    ui.commentsStatus.textContent = "";
+    return;
+  }
+
+  const total = state.comments.length;
+  ui.commentsMeta.textContent = total === 1 ? "1 comment" : `${total} comments`;
+  ui.commentsEmpty.hidden = total > 0;
+  if (total === 0) {
+    ui.commentsEmpty.textContent = "No comments yet. Be the first one.";
+  }
+
+  ui.commentInput.disabled = !signedIn;
+  ui.commentSubmit.disabled = !signedIn;
+  if (!signedIn) {
+    ui.commentsStatus.textContent = "Sign in to add a comment.";
+  } else if (ui.commentsStatus.textContent === "Sign in to add a comment.") {
+    ui.commentsStatus.textContent = "";
+  }
+
+  const commentsByParentId = new Map();
+  state.comments.forEach((comment) => {
+    const key = comment.parentCommentId || "";
+    if (!commentsByParentId.has(key)) {
+      commentsByParentId.set(key, []);
+    }
+    commentsByParentId.get(key).push(comment);
+  });
+
+  commentsByParentId.forEach((items) => {
+    items.sort((a, b) => {
+      const aTime = new Date(a.createdAt || 0).getTime();
+      const bTime = new Date(b.createdAt || 0).getTime();
+      return aTime - bTime;
+    });
+  });
+
+  ui.commentsList.innerHTML = "";
+  (commentsByParentId.get("") || []).forEach((comment) => {
+    ui.commentsList.append(renderCommentNode(comment, commentsByParentId, signedIn, 0));
+  });
+}
+
+function renderCommentNode(comment, commentsByParentId, signedIn, depth) {
+  const item = document.createElement("li");
+  item.className = "comment-item";
+  if (depth > 0) {
+    item.classList.add("comment-reply-item");
+  }
+
+  const head = document.createElement("div");
+  head.className = "comment-item-head";
+
+  const avatar = document.createElement("span");
+  avatar.className = "profile-avatar comment-author-avatar";
+  if (window.SharedProfileUtils?.renderAvatar) {
+    window.SharedProfileUtils.renderAvatar(avatar, comment.authorProfile, null, state.supabase);
+  }
+
+  const meta = document.createElement("div");
+  meta.className = "comment-meta";
+
+  const author = document.createElement("p");
+  author.className = "comment-author";
+  author.textContent = comment.authorName || "Family member";
+
+  const time = document.createElement("p");
+  time.className = "comment-time";
+  time.textContent = formatCommentDate(comment.createdAt);
+
+  meta.append(author, time);
+  head.append(avatar, meta);
+
+  const actions = document.createElement("div");
+  actions.className = "comment-actions";
+
+  if (signedIn) {
+    const replyBtn = document.createElement("button");
+    replyBtn.type = "button";
+    replyBtn.className = "comment-action";
+    const isReplyOpen = state.activeReplyParentId === comment.id;
+    replyBtn.textContent = isReplyOpen ? "Cancel" : "Reply";
+    replyBtn.addEventListener("click", () => {
+      state.activeReplyParentId = isReplyOpen ? "" : comment.id;
+      renderCommentsBlock();
+    });
+    actions.append(replyBtn);
+  }
+
+  const canDelete =
+    signedIn &&
+    Boolean(comment.userId) &&
+    (comment.userId === state.session.user.id || state.canModerateComments);
+
+  if (canDelete) {
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "comment-delete";
+    deleteBtn.textContent = "Delete";
+    deleteBtn.setAttribute("aria-label", `Delete comment by ${comment.authorName}`);
+    deleteBtn.addEventListener("click", async () => {
+      await deleteRecipeComment(comment.id);
+    });
+    actions.append(deleteBtn);
+  }
+
+  if (actions.children.length) {
+    head.append(actions);
+  }
+
+  const body = document.createElement("p");
+  body.className = "comment-content";
+  body.textContent = comment.content;
+
+  item.append(head, body);
+
+  if (signedIn && state.activeReplyParentId === comment.id) {
+    item.append(createReplyForm(comment));
+  }
+
+  const children = commentsByParentId.get(comment.id) || [];
+  if (children.length) {
+    const childList = document.createElement("ul");
+    childList.className = "comment-children";
+    children.forEach((child) => {
+      childList.append(renderCommentNode(child, commentsByParentId, signedIn, depth + 1));
+    });
+    item.append(childList);
+  }
+
+  return item;
+}
+
+function createReplyForm(comment) {
+  const form = document.createElement("form");
+  form.className = "reply-form";
+
+  const input = document.createElement("textarea");
+  input.rows = 3;
+  input.maxLength = 1200;
+  input.placeholder = `Reply to ${comment.authorName || "comment"}...`;
+  input.required = true;
+
+  const actions = document.createElement("div");
+  actions.className = "reply-form-actions";
+
+  const submitBtn = document.createElement("button");
+  submitBtn.type = "submit";
+  submitBtn.className = "btn btn-secondary";
+  submitBtn.textContent = "Post Reply";
+
+  const cancelBtn = document.createElement("button");
+  cancelBtn.type = "button";
+  cancelBtn.className = "btn btn-ghost";
+  cancelBtn.textContent = "Cancel";
+  cancelBtn.addEventListener("click", () => {
+    state.activeReplyParentId = "";
+    renderCommentsBlock();
+  });
+
+  actions.append(submitBtn, cancelBtn);
+  form.append(input, actions);
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await submitRecipeComment({
+      content: input.value,
+      parentCommentId: comment.id,
+      onStart: () => {
+        submitBtn.disabled = true;
+        cancelBtn.disabled = true;
+        ui.commentsStatus.textContent = "Posting reply...";
+      },
+      onDone: () => {
+        submitBtn.disabled = false;
+        cancelBtn.disabled = false;
+      }
+    });
+  });
+
+  return form;
+}
+
+function formatCommentDate(value) {
+  if (!value) {
+    return "Just now";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "Just now";
+  }
+
+  return parsed.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  });
+}
+
+async function handleCommentSubmit(event) {
+  event.preventDefault();
+
+  await submitRecipeComment({
+    content: ui.commentInput.value,
+    parentCommentId: "",
+    onStart: () => {
+      ui.commentSubmit.disabled = true;
+      ui.commentsStatus.textContent = "Posting comment...";
+    },
+    onDone: () => {
+      ui.commentSubmit.disabled = false;
+    }
+  });
+}
+
+async function submitRecipeComment(options) {
+  const content = cleanText(options?.content || "").slice(0, 1200);
+  const parentCommentId = cleanText(options?.parentCommentId || "");
+  const onStart = typeof options?.onStart === "function" ? options.onStart : () => {};
+  const onDone = typeof options?.onDone === "function" ? options.onDone : () => {};
+
+  if (!state.commentsAvailable) {
+    ui.commentsStatus.textContent = "Comments are not available right now.";
+    return;
+  }
+
+  if (!state.session?.user?.id || !state.recipe?.id) {
+    ui.commentsStatus.textContent = "Sign in to add a comment.";
+    return;
+  }
+
+  if (!content) {
+    ui.commentsStatus.textContent = parentCommentId ? "Write a reply first." : "Write a comment first.";
+    return;
+  }
+
+  onStart();
+
+  const { error } = await state.supabase.from("recipe_comments").insert({
+    recipe_id: state.recipe.id,
+    user_id: state.session.user.id,
+    parent_comment_id: parentCommentId || null,
+    content
+  });
+
+  if (error) {
+    console.error(error);
+    ui.commentsStatus.textContent = parentCommentId
+      ? "Could not post reply. Please try again."
+      : "Could not post comment. Please try again.";
+    onDone();
+    return;
+  }
+
+  if (!parentCommentId) {
+    ui.commentInput.value = "";
+  }
+  state.activeReplyParentId = "";
+  ui.commentsStatus.textContent = parentCommentId ? "Reply posted." : "Comment posted.";
+  await hydrateRecipeComments(state.recipe.id);
+  renderCommentsBlock();
+  onDone();
+}
+
+async function deleteRecipeComment(commentId) {
+  if (!state.session?.user?.id || !state.recipe?.id || !commentId) {
+    return;
+  }
+
+  ui.commentsStatus.textContent = "Removing comment...";
+
+  const { error } = await state.supabase.from("recipe_comments").delete().eq("id", commentId);
+
+  if (error) {
+    console.error(error);
+    ui.commentsStatus.textContent = "Could not remove comment.";
+    return;
+  }
+
+  ui.commentsStatus.textContent = "Comment removed.";
+  await hydrateRecipeComments(state.recipe.id);
+  renderCommentsBlock();
+}
+
 async function submitRecipeRating(rating) {
   if (!state.session?.user?.id || !state.recipe?.id) {
     ui.recipeStatus.textContent = "Sign in to rate recipes.";
@@ -482,7 +904,7 @@ async function signUp() {
 
   if (!result.ok) {
     if (!state.useSupabase) {
-      window.SharedNavbar?.setSignedOutState("Configure Supabase first.");
+      window.SharedNavbar?.setSignedOutState("Service is currently unavailable.");
       return;
     }
 
@@ -509,7 +931,7 @@ async function signIn() {
 
   if (!result.ok) {
     if (!state.useSupabase) {
-      window.SharedNavbar?.setSignedOutState("Configure Supabase first.");
+      window.SharedNavbar?.setSignedOutState("Service is currently unavailable.");
       return;
     }
 

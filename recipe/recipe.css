@@ -19,12 +19,13 @@ body {
   color: var(--text);
   background: radial-gradient(circle at 15% 20%, #fff8df 0, transparent 35%),
     radial-gradient(circle at 90% 0%, #f7dfcd 0, transparent 28%), var(--bg);
-  padding: 0 var(--page-pad) 3rem;
+  padding: 0 0 3rem;
 }
 
 .recipe-shell {
   max-width: 1080px;
   margin: 0 auto;
+  padding: 0 var(--page-pad);
 }
 
 .recipe-page-actions {
@@ -167,6 +168,217 @@ h1 {
   transform: none;
 }
 
+.comments-box {
+  margin-top: 0.9rem;
+  margin-bottom: 0.9rem;
+  border: 1px solid rgba(47, 36, 29, 0.1);
+  border-radius: 12px;
+  background: #fffcf7;
+  padding: 0.8rem;
+}
+
+.comments-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.7rem;
+  margin-bottom: 0.5rem;
+}
+
+.comments-meta {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.comments-empty {
+  margin: 0.2rem 0 0.6rem;
+  color: var(--text-muted);
+}
+
+.comments-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.comment-item {
+  border: 1px solid rgba(47, 36, 29, 0.08);
+  border-radius: 10px;
+  background: #fff;
+  padding: 0.6rem;
+}
+
+.comment-item-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.comment-author-avatar {
+  width: 1.7rem;
+  height: 1.7rem;
+  min-width: 1.7rem;
+  font-size: 0.72rem;
+}
+
+.comment-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: baseline;
+}
+
+.comment-author {
+  font-weight: 800;
+  margin: 0;
+}
+
+.comment-time {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.comment-delete {
+  margin-left: auto;
+  border: 1px solid rgba(200, 67, 39, 0.35);
+  border-radius: 999px;
+  background: #fff;
+  color: #9f311b;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  padding: 0.2rem 0.5rem;
+  cursor: pointer;
+}
+
+.comment-delete:hover,
+.comment-delete:focus-visible {
+  background: #fff1ed;
+}
+
+.comment-actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.comment-action {
+  border: 1px solid rgba(47, 36, 29, 0.2);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--text);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  padding: 0.2rem 0.5rem;
+  cursor: pointer;
+}
+
+.comment-action:hover,
+.comment-action:focus-visible {
+  background: #f7efe3;
+}
+
+.comment-content {
+  margin: 0.45rem 0 0;
+  white-space: pre-wrap;
+  line-height: 1.4;
+}
+
+.comment-children {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.comment-reply-item {
+  margin-left: 1rem;
+  border-left: 3px solid #f0dfc9;
+}
+
+.reply-form {
+  margin-top: 0.55rem;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.reply-form textarea {
+  resize: vertical;
+  min-height: 3.4rem;
+  border: 1px solid rgba(47, 36, 29, 0.24);
+  border-radius: 9px;
+  padding: 0.45rem 0.55rem;
+  font: inherit;
+  color: var(--text);
+  background: #fff;
+}
+
+.reply-form textarea:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent-2), white 35%);
+  outline-offset: 1px;
+}
+
+.reply-form-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.comment-form {
+  margin-top: 0.7rem;
+  padding-top: 0.7rem;
+  border-top: 1px dashed rgba(47, 36, 29, 0.16);
+  display: grid;
+  gap: 0.45rem;
+}
+
+.comment-form label {
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.comment-form textarea {
+  resize: vertical;
+  min-height: 4.4rem;
+  border: 1px solid rgba(47, 36, 29, 0.24);
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+  font: inherit;
+  color: var(--text);
+  background: #fff;
+}
+
+.comment-form textarea:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent-2), white 35%);
+  outline-offset: 1px;
+}
+
+.comment-form textarea:disabled {
+  background: #f4efe6;
+  cursor: not-allowed;
+}
+
+.comment-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.comments-status {
+  margin: 0;
+  min-height: 1.1rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
 .recipe-sections {
   display: grid;
   grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.25fr);
@@ -205,5 +417,14 @@ h1 {
 @media (max-width: 900px) {
   .recipe-sections {
     grid-template-columns: 1fr;
+  }
+
+  .comments-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .comment-reply-item {
+    margin-left: 0.5rem;
   }
 }

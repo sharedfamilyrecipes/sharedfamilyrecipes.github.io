@@ -24,3 +24,9 @@ Run the additive SQL migration in [supabase/migrations/20260519_add_profile_fiel
 The frontend expects a Storage bucket named `profile-avatars`. Create it before enabling uploads. The current implementation uses public URLs for uploaded avatars, so the bucket should allow public reads if that matches your deployment model.
 
 Run [supabase/migrations/20260519_profile_avatar_bucket.sql](supabase/migrations/20260519_profile_avatar_bucket.sql) to create the bucket and apply upload/read policies.
+
+Run [supabase/migrations/20260519_public_profile_reads.sql](supabase/migrations/20260519_public_profile_reads.sql) if signed-out users should still see recipe author display names and avatar images.
+
+Run [supabase/migrations/20260519_recipe_comments.sql](supabase/migrations/20260519_recipe_comments.sql) to add recipe comments. This migration also allows users with can_add=true in recipe_editors to remove any comment for moderation.
+
+If recipe comments are already deployed, run [supabase/migrations/20260519_recipe_comment_replies.sql](supabase/migrations/20260519_recipe_comment_replies.sql) to add parent comment support for threaded replies.
