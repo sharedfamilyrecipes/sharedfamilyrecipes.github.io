@@ -24,6 +24,7 @@ const state = {
   supabase: null,
   useSupabase: false,
   session: null,
+  currentProfile: null,
   canAdd: false,
   editingRecipeId: null
 };
@@ -38,9 +39,6 @@ const ui = {
   recipeGrid: document.querySelector("#recipeGrid"),
   resultCount: document.querySelector("#resultCount"),
   cardTemplate: document.querySelector("#recipeCardTemplate"),
-  recipeDialog: document.querySelector("#recipeDialog"),
-  recipeDialogContent: document.querySelector("#recipeDialogContent"),
-  closeRecipeDialog: document.querySelector("#closeRecipeDialog"),
   addDialog: document.querySelector("#addDialog"),
   openAddRecipe: document.querySelector("#openAddRecipe"),
   closeAddDialog: document.querySelector("#closeAddDialog"),
@@ -52,13 +50,19 @@ const ui = {
   allergyTagInputs: document.querySelector("#allergyTagInputs"),
   audienceTagInputs: document.querySelector("#audienceTagInputs"),
   formStatus: document.querySelector("#formStatus"),
-  authForm: document.querySelector("#authForm"),
-  authEmail: document.querySelector("#authEmail"),
-  authPassword: document.querySelector("#authPassword"),
-  signInBtn: document.querySelector("#signInBtn"),
-  signUpBtn: document.querySelector("#signUpBtn"),
-  signOutBtn: document.querySelector("#signOutBtn"),
-  authMessage: document.querySelector("#authMessage")
+  authForm: null,
+  authEmail: null,
+  authPassword: null,
+  signInBtn: null,
+  signUpBtn: null,
+  signOutBtn: null,
+  authMessage: null,
+  signedOutAuth: null,
+  signedInProfile: null,
+  profileAvatar: null,
+  profileDisplayName: null,
+  profileMeta: null,
+  profileMenuLink: null
 };
 
 init().catch((error) => {
@@ -66,9 +70,12 @@ init().catch((error) => {
 });
 
 async function init() {
+  await waitForSharedNavbar();
+  hydrateSharedNavbarUi();
   bindEvents();
   updateAuthButtonState();
   setupSupabaseClient();
+  configureSharedNavbarAuth();
 
   if (state.useSupabase) {
     await refreshSessionAndPermissions();
@@ -85,6 +92,23 @@ async function init() {
 
   buildFilterAndFormInputs();
   render();
+}
+
+async function waitForSharedNavbar() {
+  if (!window.SharedNavbar?.ready) {
+    return;
+  }
+
+  try {
+    await window.SharedNavbar.ready;
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function hydrateSharedNavbarUi() {
+  const navbarUi = window.SharedNavbar?.getElements ? window.SharedNavbar.getElements() : {};
+  Object.assign(ui, navbarUi);
 }
 
 function bindEvents() {
@@ -120,11 +144,24 @@ function bindEvents() {
   });
   ui.addRecipeForm.addEventListener("submit", handleAddRecipeSubmit);
 
-  ui.closeRecipeDialog.addEventListener("click", () => closeDialog(ui.recipeDialog));
+  ui.signInBtn?.addEventListener("click", signIn);
+  ui.signUpBtn?.addEventListener("click", signUp);
+}
 
-  ui.signInBtn.addEventListener("click", signIn);
-  ui.signUpBtn.addEventListener("click", signUp);
-  ui.signOutBtn.addEventListener("click", signOut);
+function configureSharedNavbarAuth() {
+  if (!window.SharedNavbar?.setAuthConfig) {
+    return;
+  }
+
+  window.SharedNavbar.setAuthConfig({
+    getSupabaseClient: () => (state.useSupabase ? state.supabase : null),
+    onSignOutError: (message, error) => {
+      if (error) {
+        console.error(error);
+      }
+      setAuthMessage(message || "Sign-out failed.");
+    }
+  });
 }
 
 function setupSupabaseClient() {
@@ -150,8 +187,9 @@ async function refreshSessionAndPermissions() {
   const { data, error } = await state.supabase.auth.getSession();
   if (error) {
     console.error(error);
-    ui.authMessage.textContent = "Could not check sign-in status.";
+    setAuthMessage("Could not check sign-in status.");
     state.session = null;
+    state.currentProfile = null;
     state.canAdd = false;
     updateAddButtonState();
     updateAuthButtonState();
@@ -162,12 +200,16 @@ async function refreshSessionAndPermissions() {
   updateAuthButtonState();
 
   if (!state.session?.user) {
+    state.currentProfile = null;
     state.canAdd = false;
     updateAddButtonState();
-    ui.authMessage.textContent = "";
+    setAuthMessage("");
     render();
     return;
   }
+
+  await syncCurrentUserProfile();
+  state.currentProfile = await loadCurrentUserProfile();
 
   const userId = state.session.user.id;
   const userEmail = state.session.user.email || "(no email)";
@@ -181,13 +223,13 @@ async function refreshSessionAndPermissions() {
   if (editorError) {
     console.error(editorError);
     state.canAdd = false;
-    ui.authMessage.textContent = `Signed in as ${userEmail}.`;
+    updateNavbarProfile();
     updateAddButtonState();
     return;
   }
 
   state.canAdd = Boolean(editorRow && editorRow.can_add);
-  ui.authMessage.textContent = `Signed in as ${userEmail}.`;
+  updateNavbarProfile();
 
   updateAddButtonState();
 }
@@ -207,11 +249,18 @@ function updateAddButtonState() {
 
 function updateAuthButtonState() {
   const signedIn = Boolean(state.session?.user);
-  ui.signOutBtn.hidden = !signedIn;
-  ui.signInBtn.hidden = signedIn;
-  ui.signUpBtn.hidden = signedIn;
-  ui.authEmail.hidden = signedIn;
-  ui.authPassword.hidden = signedIn;
+
+  if (window.SharedNavbar) {
+    if (signedIn) {
+      updateNavbarProfile();
+    } else {
+      window.SharedNavbar.setSignedOutState(ui.authMessage?.textContent || "");
+    }
+  }
+
+  if (ui.signOutBtn) {
+    ui.signOutBtn.hidden = !signedIn;
+  }
 }
 
 async function syncCurrentUserProfile() {
@@ -234,6 +283,63 @@ async function syncCurrentUserProfile() {
   }
 }
 
+async function loadCurrentUserProfile() {
+  if (!state.useSupabase || !state.session?.user?.id) {
+    return null;
+  }
+
+  const { data, error } = await state.supabase
+    .from("user_profiles")
+    .select("*")
+    .eq("user_id", state.session.user.id)
+    .maybeSingle();
+
+  if (error) {
+    if (error.code !== "42P01" && error.code !== "42501" && error.code !== "PGRST205") {
+      console.error(error);
+    }
+
+    return {
+      user_id: state.session.user.id,
+      email: state.session.user.email || ""
+    };
+  }
+
+  return data || {
+    user_id: state.session.user.id,
+    email: state.session.user.email || ""
+  };
+}
+
+function updateNavbarProfile() {
+  if (!state.session?.user || !window.SharedNavbar) {
+    return;
+  }
+
+  const displayName = window.SharedProfileUtils?.getDisplayName
+    ? window.SharedProfileUtils.getDisplayName(state.currentProfile, state.session.user)
+    : state.session.user.email || "Profile";
+
+  window.SharedNavbar.setSignedInState({
+    displayName,
+    meta: state.session.user.email || "",
+    profile: state.currentProfile,
+    user: state.session.user,
+    supabase: state.supabase,
+    message: ""
+  });
+}
+
+function setAuthMessage(message) {
+  if (ui.authMessage) {
+    ui.authMessage.textContent = message;
+  }
+
+  if (!state.session?.user && window.SharedNavbar) {
+    window.SharedNavbar.setSignedOutState(message);
+  }
+}
+
 async function loadRecipesFromSupabase() {
   const { data, error } = await state.supabase
     .from("recipes")
@@ -249,7 +355,64 @@ async function loadRecipesFromSupabase() {
   }
 
   state.recipes = data.map(fromDbRecipeRow);
+  await hydrateRecipeDisplayNames();
   await hydrateRecipeRatings();
+}
+
+async function hydrateRecipeDisplayNames() {
+  if (!state.useSupabase || !state.recipes.length) {
+    return;
+  }
+
+  const creatorIds = [...new Set(state.recipes.map((recipe) => recipe.createdByUserId).filter(Boolean))];
+  if (!creatorIds.length) {
+    return;
+  }
+
+  const { data, error } = await state.supabase
+    .from("user_profiles")
+    .select("user_id,display_name,email,avatar_kind,avatar_path,avatar_icon")
+    .in("user_id", creatorIds);
+
+  if (error) {
+    if (error.code !== "42P01" && error.code !== "42501" && error.code !== "PGRST205") {
+      console.error(error);
+    }
+    return;
+  }
+
+  const profileByUserId = new Map();
+  (data || []).forEach((row) => {
+    const userId = cleanText(row.user_id);
+    if (!userId) {
+      return;
+    }
+
+    const displayName = cleanText(row.display_name);
+    const emailName = cleanText(row.email).split("@")[0] || "";
+    const finalName = displayName || emailName;
+
+    profileByUserId.set(userId, {
+      display_name: finalName,
+      email: cleanText(row.email),
+      avatar_kind: cleanText(row.avatar_kind),
+      avatar_path: cleanText(row.avatar_path),
+      avatar_icon: cleanText(row.avatar_icon)
+    });
+  });
+
+  state.recipes = state.recipes.map((recipe) => ({
+    ...recipe,
+    addedBy: profileByUserId.get(recipe.createdByUserId)?.display_name || recipe.addedBy,
+    authorProfile:
+      profileByUserId.get(recipe.createdByUserId) ||
+      {
+        display_name: recipe.addedBy,
+        avatar_kind: "initials",
+        avatar_path: "",
+        avatar_icon: ""
+      }
+  }));
 }
 
 async function hydrateRecipeRatings() {
@@ -325,6 +488,14 @@ function clearAllFilters() {
   state.filters.audience.clear();
   state.filters.searchText = "";
   ui.searchInput.value = "";
+
+  [ui.mealTypeFilters, ui.ingredientFilters, ui.allergyFilters, ui.audienceFilters].forEach(
+    (container) => {
+      container.querySelectorAll(".chip.active").forEach((chip) => {
+        chip.classList.remove("active");
+      });
+    }
+  );
 }
 
 function getFilterOptions() {
@@ -474,7 +645,16 @@ function renderRecipeGrid(recipes) {
     .forEach((recipe) => {
       const card = ui.cardTemplate.content.firstElementChild.cloneNode(true);
       card.querySelector("h3").textContent = recipe.title;
-      card.querySelector(".added-by").textContent = `Added by ${recipe.addedBy}`;
+      card.querySelector(".added-by-name").textContent = recipe.addedBy;
+      const authorAvatar = card.querySelector(".recipe-author-avatar");
+      if (authorAvatar && window.SharedProfileUtils?.renderAvatar) {
+        window.SharedProfileUtils.renderAvatar(
+          authorAvatar,
+          recipe.authorProfile || { display_name: recipe.addedBy, avatar_kind: "initials" },
+          null,
+          state.supabase
+        );
+      }
       card.querySelector(".description").textContent = recipe.description;
 
       const tagBox = card.querySelector(".tags");
@@ -543,12 +723,16 @@ function renderRecipeGrid(recipes) {
         });
       }
 
-      card.querySelector(".details-btn").addEventListener("click", () => {
-        openRecipeDialog(recipe);
-      });
+      const detailsLink = card.querySelector(".details-link");
+      detailsLink.href = getRecipePageUrl(recipe.id);
+      detailsLink.setAttribute("aria-label", `View recipe page for ${recipe.title}`);
 
       ui.recipeGrid.append(card);
     });
+}
+
+function getRecipePageUrl(recipeId) {
+  return `recipe/index.html?id=${encodeURIComponent(recipeId)}`;
 }
 
 async function submitRecipeRating(recipeId, rating) {
@@ -588,42 +772,6 @@ async function submitRecipeRating(recipeId, rating) {
   render();
 }
 
-function openRecipeDialog(recipe) {
-  const ingredientItems = recipe.ingredients
-    .map((item) => `<li>${escapeHtml(item)}</li>`)
-    .join("");
-  const stepItems = recipe.steps.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
-
-  ui.recipeDialogContent.innerHTML = `
-    <div class="recipe-modal">
-      <header class="recipe-modal-head">
-        <h2>${escapeHtml(recipe.title)}</h2>
-        <p class="recipe-modal-meta"><span>Added by</span> ${escapeHtml(recipe.addedBy)}</p>
-        <p class="recipe-modal-description">${escapeHtml(recipe.description)}</p>
-        <div class="tags recipe-modal-tags">
-          ${[recipe.mealType, ...recipe.ingredientTags, ...recipe.allergyTags, ...recipe.audienceTags]
-            .map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`)
-            .join("")}
-        </div>
-      </header>
-
-      <div class="recipe-modal-sections">
-        <section class="recipe-modal-section">
-          <h3>Ingredients</h3>
-          <ul class="ingredients">${ingredientItems}</ul>
-        </section>
-
-        <section class="recipe-modal-section">
-          <h3>Steps</h3>
-          <ol class="steps">${stepItems}</ol>
-        </section>
-      </div>
-    </div>
-  `;
-
-  openDialog(ui.recipeDialog);
-}
-
 async function handleAddRecipeSubmit(event) {
   event.preventDefault();
 
@@ -638,10 +786,14 @@ async function handleAddRecipeSubmit(event) {
   }
 
   const formData = new FormData(ui.addRecipeForm);
+  const displayNameFromProfile =
+    window.SharedProfileUtils?.getDisplayName?.(state.currentProfile, state.session?.user) ||
+    cleanText(state.session?.user?.email).split("@")[0] ||
+    "Family";
 
   const recipe = normalizeRecipe({
     title: formData.get("title"),
-    addedBy: formData.get("addedBy"),
+    addedBy: displayNameFromProfile,
     description: formData.get("description"),
     mealType: formData.get("mealType"),
     ingredientTags: formData.getAll("ingredientTags"),
@@ -653,19 +805,21 @@ async function handleAddRecipeSubmit(event) {
 
   if (
     !recipe.title ||
-    !recipe.addedBy ||
     !recipe.mealType ||
     !recipe.ingredients.length ||
     !recipe.steps.length
   ) {
     ui.formStatus.textContent =
-      "Please fill in recipe name, added by, meal type, ingredients, and steps.";
+      "Please fill in recipe name, meal type, ingredients, and steps.";
     return;
   }
 
   const payload = {
     title: recipe.title,
-    added_by: recipe.addedBy,
+    added_by:
+      (window.SharedProfileUtils?.getDisplayName
+        ? window.SharedProfileUtils.getDisplayName(state.currentProfile, state.session?.user)
+        : "") || recipe.addedBy,
     description: recipe.description,
     meal_type: recipe.mealType,
     ingredient_tags: recipe.ingredientTags,
@@ -713,70 +867,66 @@ async function handleAddRecipeSubmit(event) {
 }
 
 async function signUp() {
-  if (!state.useSupabase) {
-    ui.authMessage.textContent = "Configure Supabase first.";
-    return;
-  }
-
-  const email = ui.authEmail.value.trim();
-  const password = ui.authPassword.value;
-
-  if (!email || !password) {
-    ui.authMessage.textContent = "Enter email and password to create an account.";
-    return;
-  }
-
-  const { error } = await state.supabase.auth.signUp({
-    email,
-    password
+  const result = await window.SharedAuthUtils.signUp({
+    supabase: state.useSupabase ? state.supabase : null,
+    email: ui.authEmail.value,
+    password: ui.authPassword.value
   });
 
-  if (error) {
-    console.error(error);
-    ui.authMessage.textContent = `Sign-up failed: ${error.message}`;
+  if (!result.ok) {
+    if (!state.useSupabase) {
+      setAuthMessage("Configure Supabase first.");
+      return;
+    }
+
+    if (result.error) {
+      console.error(result.error);
+    }
+
+    setAuthMessage(result.message);
     return;
   }
 
-  ui.authMessage.textContent =
-    "Account created. Confirm your email if prompted, then ask the owner to approve your account.";
+  setAuthMessage(
+    "Account created. Confirm your email if prompted, then ask the owner to approve your account."
+  );
 }
 
 async function signIn() {
-  if (!state.useSupabase) {
-    ui.authMessage.textContent = "Configure Supabase first.";
-    return;
-  }
-
-  const email = ui.authEmail.value.trim();
-  const password = ui.authPassword.value;
-
-  if (!email || !password) {
-    ui.authMessage.textContent = "Enter email and password to sign in.";
-    return;
-  }
-
-  const { error } = await state.supabase.auth.signInWithPassword({
-    email,
-    password
+  const result = await window.SharedAuthUtils.signIn({
+    supabase: state.useSupabase ? state.supabase : null,
+    email: ui.authEmail.value,
+    password: ui.authPassword.value,
+    onSuccess: refreshSessionAndPermissions
   });
 
-  if (error) {
-    console.error(error);
-    ui.authMessage.textContent = `Sign-in failed: ${error.message}`;
+  if (!result.ok) {
+    if (!state.useSupabase) {
+      setAuthMessage("Configure Supabase first.");
+      return;
+    }
+
+    if (result.error) {
+      console.error(result.error);
+    }
+
+    setAuthMessage(result.message);
     return;
   }
-
-  await refreshSessionAndPermissions();
 }
 
 async function signOut() {
-  if (!state.useSupabase) {
-    ui.authMessage.textContent = "Supabase is not configured.";
-    return;
-  }
+  const result = await window.SharedAuthUtils.signOut({
+    supabase: state.useSupabase ? state.supabase : null,
+    reloadAlways: true
+  });
 
-  await state.supabase.auth.signOut();
-  window.location.reload();
+  if (!result.ok) {
+    if (result.error) {
+      console.error(result.error);
+    }
+    setAuthMessage(result.message || "Supabase is not configured.");
+  }
 }
 
 function fromDbRecipeRow(row) {
@@ -816,6 +966,7 @@ function normalizeRecipe(raw) {
     ingredients: cleanArray(raw.ingredients),
     steps: cleanArray(raw.steps),
     createdByUserId: cleanText(raw.createdByUserId),
+    authorProfile: raw.authorProfile || null,
     ratingAverage: Number(raw.ratingAverage || 0),
     ratingCount: Number(raw.ratingCount || 0),
     userRating: Number(raw.userRating || 0)
@@ -844,7 +995,6 @@ function openEditRecipeDialog(recipe) {
   ui.formStatus.textContent = "";
 
   ui.addRecipeForm.elements.title.value = recipe.title;
-  ui.addRecipeForm.elements.addedBy.value = recipe.addedBy;
   ui.addRecipeForm.elements.description.value = recipe.description;
   ui.addRecipeForm.elements.mealType.value = recipe.mealType;
   ui.addRecipeForm.elements.ingredientsList.value = recipe.ingredients.join("\n");

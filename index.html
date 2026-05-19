@@ -14,28 +14,14 @@
       href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Nunito:wght@500;700;800&display=swap"
       rel="stylesheet"
     />
+    <link rel="stylesheet" href="shared/shared.css" />
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body>
+  <body data-page="home">
     <div class="bg-orb bg-orb-1" aria-hidden="true"></div>
     <div class="bg-orb bg-orb-2" aria-hidden="true"></div>
 
-    <nav class="navbar" aria-label="Main navigation">
-      <div class="navbar-content">
-        <div class="navbar-brand">
-          <span class="navbar-logo">🍳</span>
-          <span class="navbar-title">Shared Family Recipes</span>
-        </div>
-        <form id="authForm" class="navbar-auth" novalidate>
-          <span id="authMessage" class="navbar-status"></span>
-          <input id="authEmail" name="email" type="email" autocomplete="email" placeholder="Email" />
-          <input id="authPassword" name="password" type="password" autocomplete="current-password" placeholder="Password" />
-          <button type="button" id="signInBtn" class="btn btn-secondary">Sign In</button>
-          <button type="button" id="signUpBtn" class="btn btn-ghost">Sign Up</button>
-          <button type="button" id="signOutBtn" class="btn btn-ghost" hidden>Sign Out</button>
-        </form>
-      </div>
-    </nav>
+    <div id="sharedNavbarMount"></div>
 
     <header class="site-header">
       <div>
@@ -95,13 +81,6 @@
       </section>
     </main>
 
-    <dialog id="recipeDialog" class="dialog recipe-dialog">
-      <form method="dialog" class="dialog-shell">
-        <button class="icon-btn" id="closeRecipeDialog" aria-label="Close recipe details">X</button>
-      </form>
-      <article id="recipeDialogContent"></article>
-    </dialog>
-
     <dialog id="addDialog" class="dialog add-dialog">
       <form id="addRecipeForm" class="dialog-shell" novalidate>
         <div class="dialog-head">
@@ -115,17 +94,6 @@
           <label>
             Recipe Name
             <input type="text" name="title" required maxlength="80" />
-          </label>
-
-          <label>
-            Added By
-            <input
-              type="text"
-              name="addedBy"
-              required
-              maxlength="40"
-              placeholder="Your name"
-            />
           </label>
 
           <label>
@@ -179,7 +147,10 @@
       <article class="recipe-card">
         <div class="card-top">
           <h3></h3>
-          <p class="added-by"></p>
+          <p class="added-by">
+            <span class="recipe-author-avatar profile-avatar" aria-hidden="true"></span>
+            <span class="added-by-name"></span>
+          </p>
           <p class="description"></p>
         </div>
         <div class="rating-block" aria-label="Recipe rating">
@@ -189,7 +160,7 @@
         </div>
         <div class="tags"></div>
         <div class="recipe-actions">
-          <button class="btn btn-secondary details-btn">View Recipe</button>
+          <a class="btn btn-secondary details-link" href="#">View Recipe</a>
           <button class="btn btn-ghost edit-btn" hidden>Edit</button>
           <button class="btn btn-danger delete-btn" hidden>Delete</button>
         </div>
@@ -198,6 +169,9 @@
 
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script defer src="supabase-config.js"></script>
+    <script defer src="shared/profile-utils.js"></script>
+    <script defer src="shared/auth-utils.js"></script>
+    <script defer src="shared/navbar.js"></script>
     <script defer src="app.js"></script>
   </body>
 </html>

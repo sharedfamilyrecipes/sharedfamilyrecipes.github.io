@@ -1,0 +1,29 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Launch Shared Family Recipes",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://127.0.0.1:8123/index.html",
+      "webRoot": "${workspaceFolder}",
+      "preLaunchTask": "serve-static-site"
+    },
+    {
+      "name": "Launch Admin Board",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://127.0.0.1:8123/admin/index.html",
+      "webRoot": "${workspaceFolder}",
+      "preLaunchTask": "serve-static-site"
+    },
+    {
+      "name": "Launch Profile Page",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://127.0.0.1:8123/profile/index.html",
+      "webRoot": "${workspaceFolder}",
+      "preLaunchTask": "serve-static-site"
+    }
+  ]
+}

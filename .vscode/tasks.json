@@ -1,0 +1,31 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "serve-static-site",
+      "type": "shell",
+      "command": "node",
+      "args": [
+        "-e",
+        "const http=require('http'); const fs=require('fs'); const path=require('path'); const root=process.cwd(); const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.gif':'image/gif'}; http.createServer((req,res)=>{ const requestPath=(req.url||'/').split('?')[0]; const relativePath=decodeURIComponent(requestPath==='/'?'/index.html':requestPath).replace(/^\\//,''); const filePath=path.join(root, relativePath); fs.stat(filePath,(statError,stats)=>{ const resolvedPath=!statError && stats.isDirectory()?path.join(filePath,'index.html'):filePath; fs.readFile(resolvedPath,(readError,data)=>{ if(readError){ res.statusCode=404; res.end('Not found'); return; } const ext=path.extname(resolvedPath).toLowerCase(); res.setHeader('Content-Type', mime[ext]||'application/octet-stream'); res.end(data); }); }); }).listen(8123,()=>console.log('Server running on http://127.0.0.1:8123'));"
+      ],
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "custom",
+        "pattern": {
+          "regexp": ".*",
+          "message": 0
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*",
+          "endsPattern": "Server running on http://127.0.0.1:8123"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    }
+  ]
+}

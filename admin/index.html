@@ -11,9 +11,12 @@
       href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Nunito:wght@500;700;800&display=swap"
       rel="stylesheet"
     />
+    <link rel="stylesheet" href="../shared/shared.css" />
     <link rel="stylesheet" href="admin.css" />
   </head>
-  <body>
+  <body data-page="admin">
+    <div id="sharedNavbarMount"></div>
+
     <main class="admin-shell">
       <header class="admin-head">
         <div>
@@ -25,19 +28,7 @@
       </header>
 
       <section class="panel auth-panel" aria-label="Authentication">
-        <h2>Sign In</h2>
-        <form id="authForm" class="auth-form" novalidate>
-          <input id="authEmail" name="email" type="email" autocomplete="email" placeholder="Email" />
-          <input
-            id="authPassword"
-            name="password"
-            type="password"
-            autocomplete="current-password"
-            placeholder="Password"
-          />
-          <button type="button" id="signInBtn" class="btn btn-primary">Sign In</button>
-          <button type="button" id="signOutBtn" class="btn btn-ghost" hidden>Sign Out</button>
-        </form>
+        <h2>Account Access</h2>
         <p id="authStatus" class="status"></p>
       </section>
 
@@ -67,7 +58,8 @@
           <table class="users-table">
             <thead>
               <tr>
-                <th scope="col">Email</th>
+                <th scope="col">Icon</th>
+                <th scope="col">User</th>
                 <th scope="col">User ID</th>
                 <th scope="col">Can Add Recipes</th>
                 <th scope="col">Action</th>
@@ -87,6 +79,9 @@
 
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script defer src="../supabase-config.js"></script>
+    <script defer src="../shared/profile-utils.js"></script>
+    <script defer src="../shared/auth-utils.js"></script>
+    <script defer src="../shared/navbar.js"></script>
     <script defer src="admin.js"></script>
   </body>
 </html>

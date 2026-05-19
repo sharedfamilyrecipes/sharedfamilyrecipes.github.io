@@ -2,6 +2,7 @@ const state = {
   supabase: null,
   useSupabase: false,
   session: null,
+  currentProfile: null,
   canManagePermissions: false,
   editorRows: [],
   canReadUserProfiles: null,
@@ -9,11 +10,19 @@ const state = {
 };
 
 const ui = {
-  authForm: document.querySelector("#authForm"),
-  authEmail: document.querySelector("#authEmail"),
-  authPassword: document.querySelector("#authPassword"),
-  signInBtn: document.querySelector("#signInBtn"),
-  signOutBtn: document.querySelector("#signOutBtn"),
+  authForm: null,
+  authEmail: null,
+  authPassword: null,
+  signInBtn: null,
+  signOutBtn: null,
+  signUpBtn: null,
+  authMessage: null,
+  signedOutAuth: null,
+  signedInProfile: null,
+  profileAvatar: null,
+  profileDisplayName: null,
+  profileMeta: null,
+  profileMenuLink: null,
   authStatus: document.querySelector("#authStatus"),
   adminBoard: document.querySelector("#adminBoard"),
   accessDenied: document.querySelector("#accessDenied"),
@@ -31,8 +40,11 @@ init().catch((error) => {
 });
 
 async function init() {
+  await waitForSharedNavbar();
+  hydrateSharedNavbarUi();
   bindEvents();
   setupSupabaseClient();
+  configureSharedNavbarAuth();
 
   if (!state.useSupabase) {
     ui.authStatus.textContent = "Supabase is required. Update supabase-config.js.";
@@ -47,13 +59,46 @@ async function init() {
   });
 }
 
+async function waitForSharedNavbar() {
+  if (!window.SharedNavbar?.ready) {
+    return;
+  }
+
+  try {
+    await window.SharedNavbar.ready;
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function hydrateSharedNavbarUi() {
+  const navbarUi = window.SharedNavbar?.getElements ? window.SharedNavbar.getElements() : {};
+  Object.assign(ui, navbarUi);
+}
+
 function bindEvents() {
-  ui.signInBtn.addEventListener("click", signIn);
-  ui.signOutBtn.addEventListener("click", signOut);
+  ui.signInBtn?.addEventListener("click", signIn);
+  ui.signUpBtn?.addEventListener("click", signUp);
   ui.refreshUsersBtn.addEventListener("click", async () => {
     await loadPermissionRows();
   });
   ui.grantForm.addEventListener("submit", grantPermission);
+}
+
+function configureSharedNavbarAuth() {
+  if (!window.SharedNavbar?.setAuthConfig) {
+    return;
+  }
+
+  window.SharedNavbar.setAuthConfig({
+    getSupabaseClient: () => (state.useSupabase ? state.supabase : null),
+    onSignOutError: (message, error) => {
+      if (error) {
+        console.error(error);
+      }
+      setAuthStatus(message || "Sign-out failed.");
+    }
+  });
 }
 
 function setupSupabaseClient() {
@@ -80,8 +125,9 @@ async function refreshSessionAndAccess() {
   const { data, error } = await state.supabase.auth.getSession();
   if (error) {
     console.error(error);
-    ui.authStatus.textContent = "Could not check sign-in status.";
+    setAuthStatus("Could not check sign-in status.");
     state.session = null;
+    state.currentProfile = null;
     state.canManagePermissions = false;
     state.editorRows = [];
     renderAccess();
@@ -92,16 +138,20 @@ async function refreshSessionAndAccess() {
   updateAuthButtons();
 
   if (!state.session?.user?.id) {
+    state.currentProfile = null;
     state.canManagePermissions = false;
     state.editorRows = [];
-    ui.authStatus.textContent = "Signed out.";
+    setAuthStatus("Signed out.");
     ui.accessDeniedDetail.textContent = "Sign in first.";
     renderAccess();
     return;
   }
 
   const email = state.session.user.email || "(no email)";
-  ui.authStatus.textContent = `Signed in as ${email}.`;
+  await syncCurrentUserProfile();
+  state.currentProfile = await loadCurrentUserProfile();
+  updateNavbarProfile();
+  setAuthStatus(`Signed in as ${email}.`);
 
   const { data: editorRows, error: editorError } = await state.supabase
     .from("recipe_editors")
@@ -136,10 +186,18 @@ async function refreshSessionAndAccess() {
 
 function updateAuthButtons() {
   const signedIn = Boolean(state.session?.user);
-  ui.signOutBtn.hidden = !signedIn;
-  ui.signInBtn.hidden = signedIn;
-  ui.authEmail.hidden = signedIn;
-  ui.authPassword.hidden = signedIn;
+
+  if (window.SharedNavbar) {
+    if (signedIn) {
+      updateNavbarProfile();
+    } else {
+      window.SharedNavbar.setSignedOutState(ui.authMessage?.textContent || "");
+    }
+  }
+
+  if (ui.signOutBtn) {
+    ui.signOutBtn.hidden = !signedIn;
+  }
 }
 
 function renderAccess() {
@@ -175,10 +233,14 @@ async function loadPermissionRows() {
   state.editorRows = (data || []).map((row) => ({
     userId: String(row.user_id || ""),
     email: cleanText(row.email || row.user_email),
+    displayName: "",
+    avatarKind: "initials",
+    avatarIcon: "",
+    avatarPath: "",
     canAdd: Boolean(row.can_add)
   }));
 
-  const lookupMessage = await hydrateUserEmails();
+  const lookupMessage = await hydrateUserProfiles();
 
   state.editorRows = state.editorRows.map((row) => {
     const sessionMatch =
@@ -186,7 +248,12 @@ async function loadPermissionRows() {
 
     return {
       ...row,
-      email: row.email || state.emailByUserId.get(row.userId) || (sessionMatch ? state.session.user.email : "")
+      email: row.email || state.emailByUserId.get(row.userId) || (sessionMatch ? state.session.user.email : ""),
+      displayName:
+        row.displayName ||
+        (row.userId === state.session?.user?.id
+          ? window.SharedProfileUtils?.getDisplayName(state.currentProfile, state.session.user)
+          : "")
     };
   });
 
@@ -199,16 +266,16 @@ async function loadPermissionRows() {
   } loaded.${showLookupMessage ? ` ${lookupMessage}` : ""}`;
 }
 
-async function hydrateUserEmails() {
+async function hydrateUserProfiles() {
   const missingIds = state.editorRows
-    .filter((row) => !row.email && row.userId)
+    .filter((row) => (!row.email || !row.displayName || row.avatarKind === "initials") && row.userId)
     .map((row) => row.userId);
 
   if (!missingIds.length) {
     return "";
   }
 
-  const { rowsByUserId, lookupAvailable, message } = await lookupEmailsByUserId(missingIds);
+  const { rowsByUserId, lookupAvailable, message } = await lookupProfilesByUserId(missingIds);
 
   if (lookupAvailable === false) {
     state.canReadUserProfiles = false;
@@ -221,17 +288,23 @@ async function hydrateUserEmails() {
 
   state.editorRows = state.editorRows.map((row) => ({
     ...row,
-    email: row.email || rowsByUserId.get(row.userId) || ""
+    email: row.email || rowsByUserId.get(row.userId)?.email || "",
+    displayName: row.displayName || rowsByUserId.get(row.userId)?.displayName || "",
+    avatarKind: rowsByUserId.get(row.userId)?.avatarKind || row.avatarKind,
+    avatarIcon: rowsByUserId.get(row.userId)?.avatarIcon || row.avatarIcon,
+    avatarPath: rowsByUserId.get(row.userId)?.avatarPath || row.avatarPath
   }));
 
-  rowsByUserId.forEach((email, userId) => {
-    state.emailByUserId.set(userId, email);
+  rowsByUserId.forEach((profileRow, userId) => {
+    if (profileRow.email) {
+      state.emailByUserId.set(userId, profileRow.email);
+    }
   });
 
   return "";
 }
 
-async function lookupEmailsByUserId(userIds) {
+async function lookupProfilesByUserId(userIds) {
   const idList = [...new Set(userIds.filter(Boolean))];
   if (!idList.length) {
     return { rowsByUserId: new Map(), lookupAvailable: null, message: "" };
@@ -239,7 +312,7 @@ async function lookupEmailsByUserId(userIds) {
 
   const { data, error } = await state.supabase
     .from("user_profiles")
-    .select("user_id,email")
+    .select("user_id,email,display_name,avatar_kind,avatar_icon,avatar_path")
     .in("user_id", idList);
 
   if (error) {
@@ -274,8 +347,14 @@ async function lookupEmailsByUserId(userIds) {
   (data || []).forEach((row) => {
     const userId = String(row.user_id || "");
     const email = cleanText(row.email);
-    if (userId && email) {
-      rowsByUserId.set(userId, email);
+    if (userId) {
+      rowsByUserId.set(userId, {
+        email,
+        displayName: cleanText(row.display_name),
+        avatarKind: cleanText(row.avatar_kind) || "initials",
+        avatarIcon: cleanText(row.avatar_icon),
+        avatarPath: cleanText(row.avatar_path)
+      });
     }
   });
 
@@ -287,7 +366,7 @@ function renderPermissionTable() {
 
   if (!state.editorRows.length) {
     const tr = document.createElement("tr");
-    tr.innerHTML = '<td colspan="4">No users found in recipe_editors.</td>';
+    tr.innerHTML = '<td colspan="5">No users found in recipe_editors.</td>';
     ui.usersTableBody.append(tr);
     return;
   }
@@ -302,11 +381,28 @@ function renderPermissionTable() {
       const chipLabel = row.canAdd ? "Allowed" : "Not Allowed";
       const actionLabel = row.canAdd ? "Remove" : "Grant";
       const safeEmail = cleanText(row.email);
-      const emailCellClass = safeEmail ? "user-email" : "user-email unknown";
-      const emailCellText = safeEmail || "Unknown";
+      const displayName =
+        cleanText(row.displayName) ||
+        window.SharedProfileUtils?.getDisplayName({ email: safeEmail }, null) ||
+        "Unknown";
+      const subtitle = safeEmail || "Unknown";
+      const avatarMarkup = window.SharedProfileUtils?.renderAvatarContent
+        ? window.SharedProfileUtils.renderAvatarContent(
+            {
+              display_name: row.displayName,
+              email: safeEmail,
+              avatar_kind: row.avatarKind,
+              avatar_icon: row.avatarIcon,
+              avatar_path: row.avatarPath
+            },
+            { email: safeEmail },
+            state.supabase
+          )
+        : "<span>U</span>";
 
       tr.innerHTML = `
-        <td class="${emailCellClass}">${escapeHtml(emailCellText)}</td>
+        <td><span class="profile-avatar profile-avatar-small users-avatar">${avatarMarkup}</span></td>
+        <td class="user-summary"><strong>${escapeHtml(displayName)}</strong><span>${escapeHtml(subtitle)}</span></td>
         <td class="user-id">${escapeHtml(row.userId)}</td>
         <td><span class="permission-chip ${chipClass}">${chipLabel}</span></td>
         <td><button type="button" class="btn btn-ghost">${actionLabel}</button></td>
@@ -413,41 +509,48 @@ async function setPermission(userId, canAdd) {
 }
 
 async function signIn() {
-  if (!state.useSupabase) {
-    ui.authStatus.textContent = "Supabase is not configured.";
-    return;
-  }
-
-  const email = ui.authEmail.value.trim();
-  const password = ui.authPassword.value;
-
-  if (!email || !password) {
-    ui.authStatus.textContent = "Enter email and password to sign in.";
-    return;
-  }
-
-  const { error } = await state.supabase.auth.signInWithPassword({
-    email,
-    password
+  const result = await window.SharedAuthUtils.signIn({
+    supabase: state.useSupabase ? state.supabase : null,
+    email: ui.authEmail.value,
+    password: ui.authPassword.value,
+    onSuccess: refreshSessionAndAccess
   });
 
-  if (error) {
-    console.error(error);
-    ui.authStatus.textContent = `Sign-in failed: ${error.message}`;
+  if (!result.ok) {
+    if (result.error) {
+      console.error(result.error);
+    }
+    setAuthStatus(result.message);
+  }
+}
+
+async function signUp() {
+  const result = await window.SharedAuthUtils.signUp({
+    supabase: state.useSupabase ? state.supabase : null,
+    email: ui.authEmail.value,
+    password: ui.authPassword.value
+  });
+
+  if (!result.ok) {
+    if (result.error) {
+      console.error(result.error);
+    }
+    setAuthStatus(result.message);
     return;
   }
 
-  await refreshSessionAndAccess();
+  setAuthStatus(
+    "Account created. Confirm your email if prompted, then wait for an admin to grant add permission."
+  );
 }
 
 async function signOut() {
-  if (!state.useSupabase) {
-    return;
-  }
+  const result = await window.SharedAuthUtils.signOut({
+    supabase: state.useSupabase ? state.supabase : null
+  });
 
-  const { error } = await state.supabase.auth.signOut();
-  if (error) {
-    console.error(error);
+  if (!result.ok && result.error) {
+    console.error(result.error);
   }
 }
 
@@ -468,6 +571,61 @@ async function syncCurrentUserProfile() {
 
   if (error && error.code !== "42P01" && error.code !== "42501" && error.code !== "PGRST205") {
     console.error(error);
+  }
+}
+
+async function loadCurrentUserProfile() {
+  if (!state.useSupabase || !state.session?.user?.id) {
+    return null;
+  }
+
+  const { data, error } = await state.supabase
+    .from("user_profiles")
+    .select("*")
+    .eq("user_id", state.session.user.id)
+    .maybeSingle();
+
+  if (error) {
+    if (error.code !== "42P01" && error.code !== "42501" && error.code !== "PGRST205") {
+      console.error(error);
+    }
+
+    return {
+      user_id: state.session.user.id,
+      email: state.session.user.email || ""
+    };
+  }
+
+  return data || {
+    user_id: state.session.user.id,
+    email: state.session.user.email || ""
+  };
+}
+
+function updateNavbarProfile() {
+  if (!state.session?.user || !window.SharedNavbar) {
+    return;
+  }
+
+  const displayName = window.SharedProfileUtils?.getDisplayName
+    ? window.SharedProfileUtils.getDisplayName(state.currentProfile, state.session.user)
+    : state.session.user.email || "Profile";
+
+  window.SharedNavbar.setSignedInState({
+    displayName,
+    meta: state.session.user.email || "",
+    profile: state.currentProfile,
+    user: state.session.user,
+    supabase: state.supabase,
+    message: ""
+  });
+}
+
+function setAuthStatus(message) {
+  ui.authStatus.textContent = message;
+
+  if (!state.session?.user && window.SharedNavbar) {
+    window.SharedNavbar.setSignedOutState(message);
   }
 }
 

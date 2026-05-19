@@ -1,0 +1,153 @@
+:root {
+  --page-pad: clamp(1rem, 3vw, 2.4rem);
+  --bg: #f8efe3;
+  --panel: #fffdf8;
+  --text: #2f241d;
+  --text-muted: #725e4f;
+  --accent: #c84327;
+  --accent-2: #2f7f6d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Nunito", "Segoe UI", sans-serif;
+  color: var(--text);
+  overflow-x: hidden;
+  background: radial-gradient(circle at 10% 10%, #fff8df 0, transparent 32%),
+    radial-gradient(circle at 95% 0%, #f7dfcd 0, transparent 28%), var(--bg);
+}
+
+.profile-shell {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 var(--page-pad) 3rem;
+}
+
+.profile-head {
+  margin-bottom: 1rem;
+}
+
+.eyebrow {
+  margin: 0;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: var(--accent-2);
+  font-size: 0.8rem;
+}
+
+h1,
+h2,
+h3 {
+  font-family: "Fraunces", Georgia, serif;
+  margin: 0;
+}
+
+.intro {
+  margin: 0.55rem 0 0;
+  color: var(--text-muted);
+  max-width: 64ch;
+}
+
+.panel {
+  background: color-mix(in srgb, var(--panel), white 18%);
+  border: 1px solid rgba(47, 36, 29, 0.1);
+  border-radius: 18px;
+  padding: 1rem;
+}
+
+.profile-summary-panel {
+  margin-bottom: 1rem;
+}
+
+.profile-summary {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.profile-summary > div {
+  min-width: 0;
+}
+
+.profile-summary-name {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-summary-email {
+  margin: 0.2rem 0 0;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1.3fr 0.9fr;
+}
+
+.profile-form {
+  margin-top: 0.9rem;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.profile-form label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+input {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(47, 36, 29, 0.2);
+  padding: 0.62rem 0.7rem;
+  font: inherit;
+  background: #fff;
+}
+
+.field-hint,
+.status {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+
+.profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+@media (max-width: 860px) {
+  .profile-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-summary {
+    align-items: flex-start;
+  }
+
+  .profile-summary-name,
+  .profile-summary-email {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}

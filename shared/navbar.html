@@ -1,0 +1,46 @@
+<nav class="navbar" aria-label="Main navigation">
+  <div class="navbar-content">
+    <a class="navbar-brand" href="../index.html" data-home-link>
+      <span class="navbar-logo" aria-hidden="true">🍳</span>
+      <span class="navbar-title">Shared Family Recipes</span>
+    </a>
+
+    <form id="authForm" class="navbar-auth" novalidate>
+      <div class="navbar-auth-fields" id="signedOutAuth">
+        <span id="authMessage" class="navbar-status" aria-live="polite"></span>
+        <input id="authEmail" name="email" type="email" autocomplete="email" placeholder="Email" />
+        <input
+          id="authPassword"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          placeholder="Password"
+        />
+        <button type="button" id="signInBtn" class="btn btn-secondary">Sign In</button>
+        <button type="button" id="signUpBtn" class="btn btn-ghost">Sign Up</button>
+      </div>
+
+      <div id="signedInProfile" class="navbar-profile" hidden aria-hidden="true">
+        <button
+          type="button"
+          id="profileMenuTrigger"
+          class="profile-menu-trigger"
+          aria-haspopup="dialog"
+          aria-expanded="false"
+          aria-controls="profileMenuDialog"
+        >
+          <span id="profileAvatar" class="profile-avatar profile-avatar-small" aria-hidden="true"></span>
+          <span id="profileDisplayName" class="profile-trigger-name"></span>
+          <span class="sr-only">Open account menu</span>
+        </button>
+
+        <div id="profileMenuDialog" class="profile-menu-dialog" hidden aria-hidden="true">
+          <div class="profile-menu-header">Account</div>
+          <a id="profileMenuLink" class="profile-menu-item" href="../profile/index.html">My Profile</a>
+          <button type="button" id="signOutBtn" class="profile-menu-item danger" hidden>Sign Out</button>
+        </div>
+        <button type="button" id="profileMenuBackdrop" class="profile-menu-backdrop" hidden aria-hidden="true"></button>
+      </div>
+    </form>
+  </div>
+</nav>

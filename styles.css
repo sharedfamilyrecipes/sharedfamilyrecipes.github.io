@@ -420,6 +420,20 @@ select:focus {
   color: var(--accent-2);
   font-weight: 800;
   font-size: 0.82rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.added-by-name {
+  line-height: 1.1;
+}
+
+.recipe-author-avatar {
+  width: 1.3rem;
+  height: 1.3rem;
+  min-width: 1.3rem;
+  font-size: 0.62rem;
 }
 
 .description {
@@ -512,8 +526,12 @@ select:focus {
   padding: 0.5rem 0.72rem;
 }
 
-.recipe-actions .details-btn {
+.recipe-actions .details-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 2.35rem;
+  text-decoration: none;
 }
 
 .data-panel {
@@ -574,95 +592,8 @@ select:focus {
   font-weight: 800;
 }
 
-.recipe-dialog article,
 .add-dialog form {
   padding: 1rem;
-}
-
-.recipe-dialog .dialog-shell {
-  position: absolute;
-  top: 0.75rem;
-  right: 0.75rem;
-  z-index: 2;
-}
-
-.recipe-dialog article {
-  padding-top: 2.8rem;
-  max-height: calc(90vh - 2rem);
-  overflow-y: auto;
-}
-
-.recipe-modal {
-  display: grid;
-  gap: 1rem;
-}
-
-.recipe-modal-head {
-  display: grid;
-  gap: 0.55rem;
-  padding: 0.15rem 0 0.8rem;
-  border-bottom: 1px solid rgba(47, 36, 29, 0.1);
-}
-
-.recipe-modal-head h2 {
-  font-size: clamp(1.45rem, 2.1vw, 1.95rem);
-  line-height: 1.18;
-}
-
-.recipe-modal-meta {
-  margin: 0;
-  font-weight: 700;
-  color: var(--text-muted);
-}
-
-.recipe-modal-meta span {
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-size: 0.72rem;
-  font-weight: 800;
-  margin-right: 0.35rem;
-}
-
-.recipe-modal-description {
-  margin: 0;
-  color: var(--text);
-  line-height: 1.55;
-}
-
-.recipe-modal-tags {
-  margin-top: 0.1rem;
-}
-
-.recipe-modal-sections {
-  display: grid;
-  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.25fr);
-  gap: 0.85rem;
-}
-
-.recipe-modal-section {
-  border: 1px solid rgba(47, 36, 29, 0.11);
-  border-radius: 14px;
-  background: #fffcf7;
-  padding: 0.8rem 0.9rem;
-}
-
-.recipe-modal-section h3 {
-  margin: 0 0 0.55rem;
-  font-size: 1.3rem;
-}
-
-.recipe-modal-section .ingredients,
-.recipe-modal-section .steps {
-  margin: 0;
-  padding-left: 1.1rem;
-}
-
-.recipe-modal-section li {
-  margin-bottom: 0.28rem;
-}
-
-.recipe-modal-section li:last-child {
-  margin-bottom: 0;
 }
 
 .add-dialog {
